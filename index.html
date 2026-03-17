@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scheda Rilevazione - Strade Aperte</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+  
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  :root {
+    --primary: #2F5496;
+    --primary-light: #4A7BC7;
+    --accent: #E8913A;
+    --bg: #F5F6FA;
+    --card: #FFFFFF;
+    --text: #1A1D29;
+    --text-light: #6B7188;
+    --border: #E2E5EF;
+    --success: #34A853;
+    --danger: #EA4335;
+    --warning: #FBBC04;
+    --radius: 12px;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 16px;
+  }
+
+  .container {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .header {
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    border-radius: var(--radius);
+    padding: 24px;
+    color: white;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .header h1 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .header p {
+    font-size: 13px;
+    opacity: 0.85;
+  }
+
+  .header-nav {
+    margin-top: 12px;
+  }
+
+  .header-nav a {
+    display: inline-block;
+    color: white;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    background: rgba(255,255,255,0.2);
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.4);
+    transition: background 0.2s;
+  }
+
+  .header-nav a:hover {
+    background: rgba(255,255,255,0.35);
+  }
+
+  .section {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  .section-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border);
+  }
+
+  .field {
+    margin-bottom: 16px;
+  }
+
+  .field:last-child {
+    margin-bottom: 0;
+  }
+
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  input[type="date"],
+  input[type="time"],
+  input[type="number"],
+  input[type="text"],
+  select,
+  textarea {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    background: var(--bg);
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--primary-light);
+    background: white;
+  }
+
+  textarea {
+    resize: vertical;
+    min-height: 80px;
+  }
+
+  .row {
+    display: flex;
+    gap: 12px;
+  }
+
+  .row .field {
+    flex: 1;
+  }
+
+  .checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .checkbox-item {
+    position: relative;
+  }
+
+  .checkbox-item input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .checkbox-item label {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-light);
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 0;
+  }
+
+  .checkbox-item input:checked + label {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+  }
+
+  .radio-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .radio-item {
+    position: relative;
+  }
+
+  .radio-item input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .radio-item label {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-light);
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 0;
+  }
+
+  .radio-item input:checked + label {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+
+  .scale-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .scale-row span {
+    font-size: 11px;
+    color: var(--text-light);
+    min-width: 40px;
+  }
+
+  .scale-row span:last-child {
+    text-align: right;
+  }
+
+  .scale-buttons {
+    display: flex;
+    gap: 6px;
+    flex: 1;
+    justify-content: center;
+  }
+
+  .scale-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border);
+    background: var(--bg);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-light);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .scale-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+  }
+
+  .counter {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .counter-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border);
+    background: var(--bg);
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .counter-btn:active {
+    background: var(--primary);
+    color: white;
+  }
+
+  .counter-value {
+    font-size: 24px;
+    font-weight: 700;
+    min-width: 40px;
+    text-align: center;
+  }
+
+  .submit-btn {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    margin-bottom: 12px;
+  }
+
+  .submit-btn:active {
+    transform: scale(0.98);
+  }
+
+  .export-btn {
+    width: 100%;
+    padding: 12px;
+    background: white;
+    color: var(--primary);
+    border: 2px solid var(--primary);
+    border-radius: var(--radius);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 12px;
+  }
+
+  .history-btn {
+    width: 100%;
+    padding: 12px;
+    background: white;
+    color: var(--text-light);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 20px;
+    text-align: center;
+    text-decoration: none;
+    display: block;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--success);
+    color: white;
+    padding: 14px 24px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 14px;
+    transition: transform 0.3s ease;
+    z-index: 100;
+  }
+
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 16px 0;
+  }
+
+  .hint {
+    font-size: 11px;
+    color: var(--text-light);
+    margin-top: 4px;
+    font-style: italic;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 6px;
+  }
+
+  .badge-required {
+    background: #FEE2E2;
+    color: var(--danger);
+  }
+
+  .badge-optional {
+    background: #E8F5E9;
+    color: var(--success);
+  }
+
+  .records-count {
+    font-size: 12px;
+    color: var(--text-light);
+    text-align: center;
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>Strade Aperte</h1>
+    <p>Scheda di rilevazione uscita educativa di strada</p>
+    <div class="header-nav">
+      <a href="history.html">📋 Storico schede</a>
+    </div>
+  </div>
+
+  <!-- SEZIONE 1: DATI USCITA -->
+  <div class="section">
+    <div class="section-title">Dati uscita</div>
+    
+    <div class="row">
+      <div class="field">
+        <label>Data <span class="badge badge-required">obbligatorio</span></label>
+        <input type="date" id="data">
+      </div>
+      <div class="field">
+        <label>Ora inizio</label>
+        <input type="time" id="ora-inizio" value="16:00">
+      </div>
+      <div class="field">
+        <label>Ora fine</label>
+        <input type="time" id="ora-fine" value="18:30">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Luogo <span class="badge badge-required">obbligatorio</span></label>
+      <div class="radio-group">
+        <div class="radio-item">
+          <input type="radio" name="luogo" id="grezzana" value="Grezzana">
+          <label for="grezzana">Grezzana</label>
+        </div>
+        <div class="radio-item">
+          <input type="radio" name="luogo" id="cerro" value="Cerro Veronese">
+          <label for="cerro">Cerro Veronese</label>
+        </div>
+        <div class="radio-item">
+          <input type="radio" name="luogo" id="altro-luogo" value="Altro">
+          <label for="altro-luogo">Altro</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Zona specifica</label>
+      <input type="text" id="zona" placeholder="Es: piazza centrale, parco, fuori scuola...">
+    </div>
+
+    <div class="field">
+      <label>Educatori presenti <span class="badge badge-required">obbligatorio</span></label>
+      <div class="checkbox-group">
+        <div class="checkbox-item">
+          <input type="checkbox" id="edu-maddalena" value="Maddalena">
+          <label for="edu-maddalena">Maddalena</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="edu-andrea" value="Andrea">
+          <label for="edu-andrea">Andrea</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="edu-sofia" value="Sofia">
+          <label for="edu-sofia">Sofia</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Tipo uscita</label>
+      <div class="radio-group">
+        <div class="radio-item">
+          <input type="radio" name="tipo" id="tipo-mappatura" value="Mappatura">
+          <label for="tipo-mappatura">Mappatura</label>
+        </div>
+        <div class="radio-item">
+          <input type="radio" name="tipo" id="tipo-ordinaria" value="Ordinaria">
+          <label for="tipo-ordinaria">Ordinaria</label>
+        </div>
+        <div class="radio-item">
+          <input type="radio" name="tipo" id="tipo-evento" value="Evento/Lab">
+          <label for="tipo-evento">Evento/Lab</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEZIONE 2: RAGAZZI INCONTRATI -->
+  <div class="section">
+    <div class="section-title">Ragazzi incontrati</div>
+
+    <div class="field">
+      <label>Numero ragazzi contattati</label>
+      <div class="counter">
+        <button class="counter-btn" onclick="changeCount('ragazzi', -1)">−</button>
+        <span class="counter-value" id="ragazzi-count">0</span>
+        <button class="counter-btn" onclick="changeCount('ragazzi', 1)">+</button>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="field">
+      <label>Fascia d'età prevalente</label>
+      <div class="checkbox-group">
+        <div class="checkbox-item">
+          <input type="checkbox" id="eta-12-14" value="12-14">
+          <label for="eta-12-14">12-14</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="eta-15-17" value="15-17">
+          <label for="eta-15-17">15-17</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="eta-18-21" value="18-21">
+          <label for="eta-18-21">18-21</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="eta-22-25" value="22-25">
+          <label for="eta-22-25">22-25</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Genere prevalente</label>
+      <div class="radio-group">
+        <div class="radio-item">
+          <input type="radio" name="genere" id="gen-m" value="Maschi">
+          <label for="gen-m">Maschi</label>
+        </div>
+        <div class="radio-item">
+          <input type="radio" name="genere" id="gen-f" value="Femmine">
+          <label for="gen-f">Femmine</label>
+        </div>
+        <div class="radio-item">
+          <input type="radio" name="genere" id="gen-misto" value="Misto">
+          <label for="gen-misto">Misto</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Nuovi contatti (ragazzi mai visti prima)</label>
+      <div class="counter">
+        <button class="counter-btn" onclick="changeCount('nuovi', -1)">−</button>
+        <span class="counter-value" id="nuovi-count">0</span>
+        <button class="counter-btn" onclick="changeCount('nuovi', 1)">+</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEZIONE 3: CLIMA E INTERAZIONI -->
+  <div class="section">
+    <div class="section-title">Clima e interazioni</div>
+
+    <div class="field">
+      <label>Clima generale dell'uscita</label>
+      <div class="scale-row">
+        <span>Difficile</span>
+        <div class="scale-buttons" id="scale-clima">
+          <button class="scale-btn" onclick="setScale('clima', 1, this)">1</button>
+          <button class="scale-btn" onclick="setScale('clima', 2, this)">2</button>
+          <button class="scale-btn" onclick="setScale('clima', 3, this)">3</button>
+          <button class="scale-btn" onclick="setScale('clima', 4, this)">4</button>
+          <button class="scale-btn" onclick="setScale('clima', 5, this)">5</button>
+        </div>
+        <span>Positivo</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Apertura dei ragazzi al contatto</label>
+      <div class="scale-row">
+        <span>Chiusi</span>
+        <div class="scale-buttons" id="scale-apertura">
+          <button class="scale-btn" onclick="setScale('apertura', 1, this)">1</button>
+          <button class="scale-btn" onclick="setScale('apertura', 2, this)">2</button>
+          <button class="scale-btn" onclick="setScale('apertura', 3, this)">3</button>
+          <button class="scale-btn" onclick="setScale('apertura', 4, this)">4</button>
+          <button class="scale-btn" onclick="setScale('apertura', 5, this)">5</button>
+        </div>
+        <span>Aperti</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Temi emersi nelle conversazioni <span class="badge badge-optional">opzionale</span></label>
+      <div class="checkbox-group">
+        <div class="checkbox-item">
+          <input type="checkbox" id="tema-scuola" value="Scuola">
+          <label for="tema-scuola">Scuola</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="tema-lavoro" value="Lavoro">
+          <label for="tema-lavoro">Lavoro</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="tema-famiglia" value="Famiglia">
+          <label for="tema-famiglia">Famiglia</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="tema-amicizie" value="Amicizie">
+          <label for="tema-amicizie">Amicizie</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="tema-sostanze" value="Sostanze">
+          <label for="tema-sostanze">Sostanze</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="tema-conflitti" value="Conflitti">
+          <label for="tema-conflitti">Conflitti</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="tema-noia" value="Noia/Solitudine">
+          <label for="tema-noia">Noia/Solitudine</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="tema-sport" value="Sport/Hobby">
+          <label for="tema-sport">Sport/Hobby</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="tema-altro" value="Altro">
+          <label for="tema-altro">Altro</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEZIONE 4: CRITICITÀ -->
+  <div class="section">
+    <div class="section-title">Criticità e segnalazioni</div>
+
+    <div class="field">
+      <label>Episodi critici osservati</label>
+      <div class="checkbox-group">
+        <div class="checkbox-item">
+          <input type="checkbox" id="crit-nessuno" value="Nessuno" onchange="toggleNessuno(this)">
+          <label for="crit-nessuno">Nessuno</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="crit-aggressione" value="Aggressioni verbali" class="crit-item">
+          <label for="crit-aggressione">Aggressioni verbali</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="crit-fisica" value="Aggressioni fisiche" class="crit-item">
+          <label for="crit-fisica">Aggressioni fisiche</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="crit-vandalismo" value="Vandalismo" class="crit-item">
+          <label for="crit-vandalismo">Vandalismo</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="crit-sostanze" value="Uso sostanze" class="crit-item">
+          <label for="crit-sostanze">Uso sostanze</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="crit-bullismo" value="Bullismo" class="crit-item">
+          <label for="crit-bullismo">Bullismo</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Dettaglio criticità <span class="badge badge-optional">se presenti</span></label>
+      <textarea id="criticita-note" placeholder="Descrivi brevemente cosa è successo..."></textarea>
+    </div>
+  </div>
+
+  <!-- SEZIONE 5: RETE -->
+  <div class="section">
+    <div class="section-title">Contatti con la rete territoriale</div>
+
+    <div class="field">
+      <label>Contatti avviati oggi</label>
+      <div class="checkbox-group">
+        <div class="checkbox-item">
+          <input type="checkbox" id="rete-nessuno" value="Nessuno" onchange="toggleNessunoRete(this)">
+          <label for="rete-nessuno">Nessuno</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="rete-scuola" value="Scuola" class="rete-item">
+          <label for="rete-scuola">Scuola</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="rete-parrocchia" value="Parrocchia" class="rete-item">
+          <label for="rete-parrocchia">Parrocchia</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="rete-noi" value="Associazione NOI" class="rete-item">
+          <label for="rete-noi">Ass. NOI</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="rete-carabinieri" value="Carabinieri" class="rete-item">
+          <label for="rete-carabinieri">Carabinieri</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="rete-fablab" value="FabLab" class="rete-item">
+          <label for="rete-fablab">FabLab</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="rete-servizi" value="Servizi sociali" class="rete-item">
+          <label for="rete-servizi">Servizi sociali</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="rete-altro" value="Altro" class="rete-item">
+          <label for="rete-altro">Altro</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEZIONE 6: NOTE -->
+  <div class="section">
+    <div class="section-title">Note e osservazioni</div>
+
+    <div class="field">
+      <label>Osservazioni generali <span class="badge badge-optional">opzionale</span></label>
+      <textarea id="note" placeholder="Cosa ha funzionato? Cosa migliorare? Idee per la prossima uscita..."></textarea>
+    </div>
+
+    <div class="field">
+      <label>Da segnalare a Pamela</label>
+      <div class="radio-group">
+        <div class="radio-item">
+          <input type="radio" name="urgenza" id="urg-no" value="Nulla di urgente" checked>
+          <label for="urg-no">Nulla di urgente</label>
+        </div>
+        <div class="radio-item">
+          <input type="radio" name="urgenza" id="urg-si" value="Sì, da discutere">
+          <label for="urg-si">Da discutere</label>
+        </div>
+        <div class="radio-item">
+          <input type="radio" name="urgenza" id="urg-urgente" value="Urgente">
+          <label for="urg-urgente">Urgente</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button class="submit-btn" onclick="saveForm()">💾 Salva scheda</button>
+  <button class="export-btn" onclick="exportText()">📤 Copia come testo (per WhatsApp/Email)</button>
+  <a class="history-btn" href="history.html">📋 Vedi storico schede (<span id="records-count">0</span>)</a>
+
+  <div class="toast" id="toast">Scheda salvata!</div>
+</div>
+
+<script>
+  const counts = { ragazzi: 0, nuovi: 0 };
+  const scales = { clima: 0, apertura: 0 };
+
+  function changeCount(field, delta) {
+    counts[field] = Math.max(0, counts[field] + delta);
+    document.getElementById(field + '-count').textContent = counts[field];
+  }
+
+  function setScale(field, value, btn) {
+    scales[field] = value;
+    const buttons = btn.parentElement.querySelectorAll('.scale-btn');
+    buttons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  function toggleNessuno(checkbox) {
+    if (checkbox.checked) {
+      document.querySelectorAll('.crit-item').forEach(c => { c.checked = false; });
+    }
+  }
+
+  function toggleNessunoRete(checkbox) {
+    if (checkbox.checked) {
+      document.querySelectorAll('.rete-item').forEach(c => { c.checked = false; });
+    }
+  }
+
+  document.querySelectorAll('.crit-item').forEach(c => {
+    c.addEventListener('change', () => {
+      if (c.checked) document.getElementById('crit-nessuno').checked = false;
+    });
+  });
+
+  document.querySelectorAll('.rete-item').forEach(c => {
+    c.addEventListener('change', () => {
+      if (c.checked) document.getElementById('rete-nessuno').checked = false;
+    });
+  });
+
+  function getFormData() {
+    const data = document.getElementById('data').value;
+    const oraInizio = document.getElementById('ora-inizio').value;
+    const oraFine = document.getElementById('ora-fine').value;
+    
+    const luogo = document.querySelector('input[name="luogo"]:checked');
+    const zona = document.getElementById('zona').value;
+    
+    const educatori = [];
+    document.querySelectorAll('[id^="edu-"]:checked').forEach(c => educatori.push(c.value));
+    
+    const tipo = document.querySelector('input[name="tipo"]:checked');
+    
+    const fasce = [];
+    document.querySelectorAll('[id^="eta-"]:checked').forEach(c => fasce.push(c.value));
+    
+    const genere = document.querySelector('input[name="genere"]:checked');
+    
+    const temi = [];
+    document.querySelectorAll('[id^="tema-"]:checked').forEach(c => temi.push(c.value));
+    
+    const criticita = [];
+    document.querySelectorAll('[id^="crit-"]:checked').forEach(c => criticita.push(c.value));
+    
+    const rete = [];
+    document.querySelectorAll('[id^="rete-"]:checked').forEach(c => rete.push(c.value));
+    
+    const urgenza = document.querySelector('input[name="urgenza"]:checked');
+
+    return {
+      data, oraInizio, oraFine,
+      luogo: luogo ? luogo.value : '',
+      zona,
+      educatori,
+      tipo: tipo ? tipo.value : '',
+      ragazzi: counts.ragazzi,
+      fasce,
+      genere: genere ? genere.value : '',
+      nuovi: counts.nuovi,
+      clima: scales.clima,
+      apertura: scales.apertura,
+      temi,
+      criticita,
+      criticitaNote: document.getElementById('criticita-note').value,
+      rete,
+      note: document.getElementById('note').value,
+      urgenza: urgenza ? urgenza.value : ''
+    };
+  }
+
+  function resetForm() {
+    document.getElementById('data').valueAsDate = new Date();
+    document.getElementById('ora-inizio').value = '16:00';
+    document.getElementById('ora-fine').value = '18:30';
+    document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
+    document.getElementById('urg-no').checked = true;
+    document.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false);
+    document.getElementById('zona').value = '';
+    document.getElementById('criticita-note').value = '';
+    document.getElementById('note').value = '';
+    counts.ragazzi = 0;
+    counts.nuovi = 0;
+    document.getElementById('ragazzi-count').textContent = '0';
+    document.getElementById('nuovi-count').textContent = '0';
+    scales.clima = 0;
+    scales.apertura = 0;
+    document.querySelectorAll('.scale-btn').forEach(b => b.classList.remove('active'));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function saveForm() {
+    const formData = getFormData();
+    if (!formData.data) {
+      showToast('⚠️ Inserisci la data!', '#EA4335');
+      return;
+    }
+    if (!formData.luogo) {
+      showToast('⚠️ Seleziona il luogo!', '#EA4335');
+      return;
+    }
+    if (formData.educatori.length === 0) {
+      showToast('⚠️ Seleziona almeno un educatore!', '#EA4335');
+      return;
+    }
+    const key = 'scheda_' + (formData.data || 'nodata') + '_' + Date.now();
+    localStorage.setItem(key, JSON.stringify(formData));
+    updateRecordsCount();
+    showToast('✅ Scheda salvata!');
+    setTimeout(resetForm, 1800);
+  }
+
+  function exportText() {
+    const d = getFormData();
+    let text = `📋 SCHEDA USCITA - STRADE APERTE\n`;
+    text += `━━━━━━━━━━━━━━━━━━\n`;
+    text += `📅 Data: ${d.data || 'N/D'}\n`;
+    text += `🕐 Orario: ${d.oraInizio} - ${d.oraFine}\n`;
+    text += `📍 Luogo: ${d.luogo}${d.zona ? ' - ' + d.zona : ''}\n`;
+    text += `👥 Educatori: ${d.educatori.join(', ') || 'N/D'}\n`;
+    text += `📌 Tipo: ${d.tipo || 'N/D'}\n`;
+    text += `━━━━━━━━━━━━━━━━━━\n`;
+    text += `👦 Ragazzi contattati: ${d.ragazzi}\n`;
+    text += `🆕 Nuovi contatti: ${d.nuovi}\n`;
+    text += `🎂 Fascia età: ${d.fasce.join(', ') || 'N/D'}\n`;
+    text += `⚧ Genere: ${d.genere || 'N/D'}\n`;
+    text += `━━━━━━━━━━━━━━━━━━\n`;
+    text += `😊 Clima: ${d.clima}/5\n`;
+    text += `🤝 Apertura: ${d.apertura}/5\n`;
+    text += `💬 Temi: ${d.temi.join(', ') || 'Nessuno'}\n`;
+    text += `━━━━━━━━━━━━━━━━━━\n`;
+    text += `⚠️ Criticità: ${d.criticita.join(', ') || 'Nessuna'}\n`;
+    if (d.criticitaNote) text += `📝 Dettaglio: ${d.criticitaNote}\n`;
+    text += `🤝 Rete: ${d.rete.join(', ') || 'Nessun contatto'}\n`;
+    text += `━━━━━━━━━━━━━━━━━━\n`;
+    if (d.note) text += `📝 Note: ${d.note}\n`;
+    text += `🔔 Urgenza: ${d.urgenza}\n`;
+
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('📋 Copiato! Incolla su WhatsApp o Email');
+    }).catch(() => {
+      // Fallback for browsers that do not support the Clipboard API
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy'); // deprecated but used as fallback
+      document.body.removeChild(ta);
+      showToast('📋 Copiato! Incolla su WhatsApp o Email');
+    });
+  }
+
+  function showToast(msg, color) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.style.background = color || 'var(--success)';
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2500);
+  }
+
+  function updateRecordsCount() {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('scheda_'));
+    document.getElementById('records-count').textContent = keys.length;
+  }
+
+  // Initialize
+  document.getElementById('data').valueAsDate = new Date();
+  updateRecordsCount();
+</script>
+
+</body>
+</html>

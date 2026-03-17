@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Storico Schede - Strade Aperte</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --primary: #2F5496;
+    --primary-light: #4A7BC7;
+    --accent: #E8913A;
+    --bg: #F5F6FA;
+    --card: #FFFFFF;
+    --text: #1A1D29;
+    --text-light: #6B7188;
+    --border: #E2E5EF;
+    --success: #34A853;
+    --danger: #EA4335;
+    --warning: #FBBC04;
+    --radius: 12px;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 16px;
+  }
+
+  .container {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .header {
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    border-radius: var(--radius);
+    padding: 24px;
+    color: white;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .header h1 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .header p {
+    font-size: 13px;
+    opacity: 0.85;
+  }
+
+  .header-nav {
+    margin-top: 12px;
+  }
+
+  .header-nav a {
+    display: inline-block;
+    color: white;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    background: rgba(255,255,255,0.2);
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.4);
+    transition: background 0.2s;
+  }
+
+  .header-nav a:hover {
+    background: rgba(255,255,255,0.35);
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .toolbar input {
+    flex: 1;
+    min-width: 140px;
+    padding: 10px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    background: white;
+  }
+
+  .toolbar input:focus {
+    outline: none;
+    border-color: var(--primary-light);
+  }
+
+  .toolbar select {
+    padding: 10px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    background: white;
+    -webkit-appearance: none;
+  }
+
+  .btn-export-all {
+    padding: 10px 14px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .btn-export-all:active {
+    opacity: 0.85;
+  }
+
+  .stats-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .stat-card {
+    flex: 1;
+    min-width: 80px;
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 14px 12px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  .stat-card .stat-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--primary);
+  }
+
+  .stat-card .stat-label {
+    font-size: 11px;
+    color: var(--text-light);
+    margin-top: 2px;
+  }
+
+  .empty-state {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 48px 24px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  .empty-state .icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
+
+  .empty-state h2 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+
+  .empty-state p {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-bottom: 20px;
+  }
+
+  .empty-state a {
+    display: inline-block;
+    padding: 12px 24px;
+    background: var(--primary);
+    color: white;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .record-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    cursor: pointer;
+    transition: box-shadow 0.2s;
+    border-left: 4px solid var(--border);
+  }
+
+  .record-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+
+  .record-card.urgente {
+    border-left-color: var(--danger);
+  }
+
+  .record-card.da-discutere {
+    border-left-color: var(--warning);
+  }
+
+  .record-card.nulla {
+    border-left-color: var(--success);
+  }
+
+  .record-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+  }
+
+  .record-date {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .record-badges {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .badge-urgente { background: #FEE2E2; color: var(--danger); }
+  .badge-discutere { background: #FEF9C3; color: #92400E; }
+  .badge-ok { background: #D1FAE5; color: #065F46; }
+  .badge-luogo { background: #EFF6FF; color: var(--primary); }
+  .badge-tipo { background: #F5F3FF; color: #5B21B6; }
+
+  .record-meta {
+    font-size: 13px;
+    color: var(--text-light);
+    margin-bottom: 8px;
+  }
+
+  .record-stats {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+
+  .record-stat {
+    font-size: 12px;
+    color: var(--text-light);
+  }
+
+  .record-stat strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .record-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .btn-copy {
+    flex: 1;
+    padding: 8px;
+    background: var(--bg);
+    color: var(--primary);
+    border: 1.5px solid var(--primary);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .btn-delete {
+    padding: 8px 12px;
+    background: var(--bg);
+    color: var(--danger);
+    border: 1.5px solid var(--danger);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .detail-panel {
+    display: none;
+    margin-top: 12px;
+    padding: 14px;
+    background: var(--bg);
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text);
+  }
+
+  .detail-panel.open {
+    display: block;
+  }
+
+  .detail-section {
+    margin-bottom: 10px;
+  }
+
+  .detail-section strong {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--primary);
+    margin-bottom: 3px;
+    font-weight: 700;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--success);
+    color: white;
+    padding: 14px 24px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 14px;
+    transition: transform 0.3s ease;
+    z-index: 100;
+  }
+
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+
+  .modal-overlay.open {
+    display: flex;
+  }
+
+  .modal {
+    background: white;
+    border-radius: var(--radius);
+    padding: 24px;
+    max-width: 380px;
+    width: 100%;
+  }
+
+  .modal h2 {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .modal p {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-bottom: 20px;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .modal-actions button {
+    flex: 1;
+    padding: 12px;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+  }
+
+  .btn-cancel {
+    background: var(--bg);
+    color: var(--text);
+    border: 1.5px solid var(--border) !important;
+  }
+
+  .btn-confirm-delete {
+    background: var(--danger);
+    color: white;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>Strade Aperte</h1>
+    <p>Storico schede di rilevazione</p>
+    <div class="header-nav">
+      <a href="index.html">➕ Nuova scheda</a>
+    </div>
+  </div>
+
+  <div class="stats-row" id="stats-row"></div>
+
+  <div class="toolbar">
+    <input type="search" id="search-input" placeholder="🔍 Cerca per data, luogo, educatore..." oninput="renderRecords()">
+    <select id="filter-luogo" onchange="renderRecords()">
+      <option value="">Tutti i luoghi</option>
+      <option value="Grezzana">Grezzana</option>
+      <option value="Cerro Veronese">Cerro Veronese</option>
+      <option value="Altro">Altro</option>
+    </select>
+    <button class="btn-export-all" onclick="exportAll()">📥 Esporta CSV</button>
+  </div>
+
+  <div id="records-list"></div>
+</div>
+
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal">
+    <h2>Elimina scheda?</h2>
+    <p>Questa azione non può essere annullata.</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDeleteModal()">Annulla</button>
+      <button class="btn-confirm-delete" onclick="confirmDelete()">Elimina</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let pendingDeleteKey = null;
+
+  function getAllRecords() {
+    const records = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('scheda_')) {
+        try {
+          const data = JSON.parse(localStorage.getItem(key));
+          records.push({ key, data });
+        } catch (e) {
+          // skip malformed entries
+        }
+      }
+    }
+    records.sort((a, b) => {
+      if (a.data.data > b.data.data) return -1;
+      if (a.data.data < b.data.data) return 1;
+      return b.key.localeCompare(a.key);
+    });
+    return records;
+  }
+
+  function renderStats(records) {
+    const totalRagazzi = records.reduce((s, r) => s + (r.data.ragazzi || 0), 0);
+    const totalNuovi = records.reduce((s, r) => s + (r.data.nuovi || 0), 0);
+    const urgenti = records.filter(r => r.data.urgenza === 'Urgente').length;
+
+    document.getElementById('stats-row').innerHTML = `
+      <div class="stat-card">
+        <div class="stat-value">${records.length}</div>
+        <div class="stat-label">Schede totali</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${totalRagazzi}</div>
+        <div class="stat-label">Ragazzi totali</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${totalNuovi}</div>
+        <div class="stat-label">Nuovi contatti</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" style="color:${urgenti > 0 ? 'var(--danger)' : 'var(--success)'}">${urgenti}</div>
+        <div class="stat-label">Urgenti</div>
+      </div>
+    `;
+  }
+
+  function formatDate(dateStr) {
+    if (!dateStr) return 'N/D';
+    const [y, m, d] = dateStr.split('-');
+    return `${d}/${m}/${y}`;
+  }
+
+  function urgencyClass(urgenza) {
+    if (urgenza === 'Urgente') return 'urgente';
+    if (urgenza === 'Sì, da discutere') return 'da-discutere';
+    return 'nulla';
+  }
+
+  function urgencyBadge(urgenza) {
+    if (urgenza === 'Urgente') return '<span class="badge badge-urgente">🔴 Urgente</span>';
+    if (urgenza === 'Sì, da discutere') return '<span class="badge badge-discutere">🟡 Da discutere</span>';
+    return '<span class="badge badge-ok">🟢 OK</span>';
+  }
+
+  function renderRecords() {
+    const search = document.getElementById('search-input').value.toLowerCase();
+    const filterLuogo = document.getElementById('filter-luogo').value;
+    const all = getAllRecords();
+
+    renderStats(all);
+
+    const filtered = all.filter(r => {
+      const d = r.data;
+      const matchSearch = !search ||
+        (d.data || '').includes(search) ||
+        (d.luogo || '').toLowerCase().includes(search) ||
+        (d.zona || '').toLowerCase().includes(search) ||
+        (d.educatori || []).some(e => e.toLowerCase().includes(search)) ||
+        (d.note || '').toLowerCase().includes(search);
+      const matchLuogo = !filterLuogo || d.luogo === filterLuogo;
+      return matchSearch && matchLuogo;
+    });
+
+    const container = document.getElementById('records-list');
+
+    if (filtered.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">${all.length === 0 ? '📋' : '🔍'}</div>
+          <h2>${all.length === 0 ? 'Nessuna scheda salvata' : 'Nessun risultato'}</h2>
+          <p>${all.length === 0 ? 'Compila la prima scheda di rilevazione per iniziare.' : 'Prova a modificare i filtri di ricerca.'}</p>
+          ${all.length === 0 ? '<a href="index.html">➕ Nuova scheda</a>' : ''}
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = filtered.map(({ key, data: d }) => {
+      const eduStr = (d.educatori || []).join(', ') || 'N/D';
+      const temiStr = (d.temi || []).join(', ') || '—';
+      const critStr = (d.criticita || []).join(', ') || 'Nessuna';
+      const reteStr = (d.rete || []).join(', ') || 'Nessuno';
+      const fasceStr = (d.fasce || []).join(', ') || 'N/D';
+
+      return `
+        <div class="record-card ${urgencyClass(d.urgenza)}" id="card-${key}">
+          <div class="record-header">
+            <div class="record-date">📅 ${formatDate(d.data)}</div>
+            <div class="record-badges">
+              ${d.luogo ? `<span class="badge badge-luogo">${d.luogo}</span>` : ''}
+              ${d.tipo ? `<span class="badge badge-tipo">${d.tipo}</span>` : ''}
+              ${urgencyBadge(d.urgenza)}
+            </div>
+          </div>
+          <div class="record-meta">
+            🕐 ${d.oraInizio || '?'} – ${d.oraFine || '?'}
+            ${d.zona ? ` · ${d.zona}` : ''}
+            · 👥 ${eduStr}
+          </div>
+          <div class="record-stats">
+            <div class="record-stat">👦 Ragazzi: <strong>${d.ragazzi || 0}</strong></div>
+            <div class="record-stat">🆕 Nuovi: <strong>${d.nuovi || 0}</strong></div>
+            <div class="record-stat">😊 Clima: <strong>${d.clima || '–'}/5</strong></div>
+            <div class="record-stat">🤝 Apertura: <strong>${d.apertura || '–'}/5</strong></div>
+          </div>
+          <div class="detail-panel" id="detail-${key}">
+            <div class="detail-section">
+              <strong>Fascia d'età</strong>${fasceStr}
+            </div>
+            <div class="detail-section">
+              <strong>Genere prevalente</strong>${d.genere || 'N/D'}
+            </div>
+            <div class="detail-section">
+              <strong>Temi emersi</strong>${temiStr}
+            </div>
+            <div class="detail-section">
+              <strong>Criticità</strong>${critStr}
+              ${d.criticitaNote ? `<br><em>${d.criticitaNote}</em>` : ''}
+            </div>
+            <div class="detail-section">
+              <strong>Rete territoriale</strong>${reteStr}
+            </div>
+            ${d.note ? `<div class="detail-section"><strong>Note</strong>${d.note}</div>` : ''}
+          </div>
+          <div class="record-actions">
+            <button class="btn-copy" onclick="copyRecord('${key}')">📤 Copia testo</button>
+            <button class="btn-delete" onclick="askDelete('${key}')">🗑️</button>
+          </div>
+        </div>`;
+    }).join('');
+
+    // Toggle detail panels
+    filtered.forEach(({ key }) => {
+      const card = document.getElementById('card-' + key);
+      const detail = document.getElementById('detail-' + key);
+      if (card && detail) {
+        card.addEventListener('click', e => {
+          if (e.target.tagName === 'BUTTON') return;
+          detail.classList.toggle('open');
+        });
+      }
+    });
+  }
+
+  function buildText(d) {
+    let text = `📋 SCHEDA USCITA - STRADE APERTE\n`;
+    text += `━━━━━━━━━━━━━━━━━━\n`;
+    text += `📅 Data: ${d.data || 'N/D'}\n`;
+    text += `🕐 Orario: ${d.oraInizio} - ${d.oraFine}\n`;
+    text += `📍 Luogo: ${d.luogo}${d.zona ? ' - ' + d.zona : ''}\n`;
+    text += `👥 Educatori: ${(d.educatori || []).join(', ') || 'N/D'}\n`;
+    text += `📌 Tipo: ${d.tipo || 'N/D'}\n`;
+    text += `━━━━━━━━━━━━━━━━━━\n`;
+    text += `👦 Ragazzi contattati: ${d.ragazzi || 0}\n`;
+    text += `🆕 Nuovi contatti: ${d.nuovi || 0}\n`;
+    text += `🎂 Fascia età: ${(d.fasce || []).join(', ') || 'N/D'}\n`;
+    text += `⚧ Genere: ${d.genere || 'N/D'}\n`;
+    text += `━━━━━━━━━━━━━━━━━━\n`;
+    text += `😊 Clima: ${d.clima || 0}/5\n`;
+    text += `🤝 Apertura: ${d.apertura || 0}/5\n`;
+    text += `💬 Temi: ${(d.temi || []).join(', ') || 'Nessuno'}\n`;
+    text += `━━━━━━━━━━━━━━━━━━\n`;
+    text += `⚠️ Criticità: ${(d.criticita || []).join(', ') || 'Nessuna'}\n`;
+    if (d.criticitaNote) text += `📝 Dettaglio: ${d.criticitaNote}\n`;
+    text += `🤝 Rete: ${(d.rete || []).join(', ') || 'Nessun contatto'}\n`;
+    text += `━━━━━━━━━━━━━━━━━━\n`;
+    if (d.note) text += `📝 Note: ${d.note}\n`;
+    text += `🔔 Urgenza: ${d.urgenza || 'N/D'}\n`;
+    return text;
+  }
+
+  function copyRecord(key) {
+    try {
+      const data = JSON.parse(localStorage.getItem(key));
+      const text = buildText(data);
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('📋 Copiato!');
+      }).catch(() => {
+        // Fallback for browsers that do not support the Clipboard API
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy'); // deprecated but used as fallback
+        document.body.removeChild(ta);
+        showToast('📋 Copiato!');
+      });
+    } catch (e) {
+      showToast('Errore nel copiare');
+    }
+  }
+
+  function askDelete(key) {
+    pendingDeleteKey = key;
+    document.getElementById('delete-modal').classList.add('open');
+  }
+
+  function closeDeleteModal() {
+    pendingDeleteKey = null;
+    document.getElementById('delete-modal').classList.remove('open');
+  }
+
+  function confirmDelete() {
+    if (pendingDeleteKey) {
+      localStorage.removeItem(pendingDeleteKey);
+      closeDeleteModal();
+      renderRecords();
+      showToast('🗑️ Scheda eliminata');
+    }
+  }
+
+  function exportAll() {
+    const records = getAllRecords();
+    if (records.length === 0) {
+      showToast('Nessuna scheda da esportare');
+      return;
+    }
+
+    const headers = [
+      'Data', 'Ora inizio', 'Ora fine', 'Luogo', 'Zona', 'Educatori', 'Tipo',
+      'Ragazzi', 'Nuovi', 'Fasce età', 'Genere',
+      'Clima', 'Apertura', 'Temi',
+      'Criticità', 'Note criticità', 'Rete', 'Note', 'Urgenza'
+    ];
+
+    const escape = v => {
+      const s = String(v == null ? '' : v);
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+        return '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    };
+
+    const rows = records.map(({ data: d }) => [
+      d.data || '',
+      d.oraInizio || '',
+      d.oraFine || '',
+      d.luogo || '',
+      d.zona || '',
+      (d.educatori || []).join('; '),
+      d.tipo || '',
+      d.ragazzi || 0,
+      d.nuovi || 0,
+      (d.fasce || []).join('; '),
+      d.genere || '',
+      d.clima || 0,
+      d.apertura || 0,
+      (d.temi || []).join('; '),
+      (d.criticita || []).join('; '),
+      d.criticitaNote || '',
+      (d.rete || []).join('; '),
+      d.note || '',
+      d.urgenza || ''
+    ].map(escape).join(','));
+
+    const csv = [headers.map(escape).join(','), ...rows].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'strade_aperte_' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('📥 CSV scaricato!');
+  }
+
+  function showToast(msg, color) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.style.background = color || 'var(--success)';
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2500);
+  }
+
+  // Initialize
+  renderRecords();
+</script>
+</body>
+</html>
