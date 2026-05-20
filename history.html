@@ -654,7 +654,7 @@
     noDetail: 'Nessun dettaglio',
     noNote: 'Nessuna nota'
   };
-  const EMPTY_VALUES = Object.values(DEFAULT_TEXT);
+  const PLACEHOLDER_VALUES = Object.values(DEFAULT_TEXT);
 
   function getAllRecords() {
     const records = [];
@@ -729,46 +729,46 @@
       .replace(/'/g, '&#39;');
   }
 
-  function listValue(values, emptyText) {
-    return (values || []).length ? values.join(', ') : emptyText;
+  function joinListOrDefault(values, defaultText) {
+    return (values || []).length ? values.join(', ') : defaultText;
   }
 
-  function scoreValue(value) {
+  function formatScoreOrDefault(value) {
     return value ? value + '/5' : DEFAULT_TEXT.missing;
   }
 
-  function detailRows(d) {
+  function detailRows(record) {
     return [
-      ['Data', formatDate(d.data)],
-      ['Ora inizio', d.oraInizio || DEFAULT_TEXT.missing],
-      ['Ora fine', d.oraFine || DEFAULT_TEXT.missing],
-      ['Luogo', d.luogo || DEFAULT_TEXT.missing],
-      ['Zona specifica', d.zona || DEFAULT_TEXT.missing],
-      ['Educatori presenti', listValue(d.educatori, DEFAULT_TEXT.missing)],
-      ['Tipo uscita', d.tipo || DEFAULT_TEXT.missing],
-      ['Numero ragazzi contattati', d.ragazzi || 0],
-      ['Nuovi contatti', d.nuovi || 0],
-      ["Fascia d'età prevalente", listValue(d.fasce, DEFAULT_TEXT.missing)],
-      ['Genere prevalente', d.genere || DEFAULT_TEXT.missing],
-      ["Clima generale dell'uscita", scoreValue(d.clima)],
-      ['Apertura dei ragazzi al contatto', scoreValue(d.apertura)],
-      ['Temi emersi nelle conversazioni', listValue(d.temi, DEFAULT_TEXT.none)],
-      ['Episodi critici osservati', listValue(d.criticita, DEFAULT_TEXT.none)],
-      ['Dettaglio criticità', d.criticitaNote || DEFAULT_TEXT.noDetail],
-      ['Contatti con la rete territoriale', listValue(d.rete, DEFAULT_TEXT.none)],
-      ['Note e osservazioni', d.note || DEFAULT_TEXT.noNote],
-      ['Da segnalare a Pamela', d.urgenza || DEFAULT_TEXT.missing]
+      ['Data', formatDate(record.data)],
+      ['Ora inizio', record.oraInizio || DEFAULT_TEXT.missing],
+      ['Ora fine', record.oraFine || DEFAULT_TEXT.missing],
+      ['Luogo', record.luogo || DEFAULT_TEXT.missing],
+      ['Zona specifica', record.zona || DEFAULT_TEXT.missing],
+      ['Educatori presenti', joinListOrDefault(record.educatori, DEFAULT_TEXT.missing)],
+      ['Tipo uscita', record.tipo || DEFAULT_TEXT.missing],
+      ['Numero ragazzi contattati', record.ragazzi || 0],
+      ['Nuovi contatti', record.nuovi || 0],
+      ["Fascia d'età prevalente", joinListOrDefault(record.fasce, DEFAULT_TEXT.missing)],
+      ['Genere prevalente', record.genere || DEFAULT_TEXT.missing],
+      ["Clima generale dell'uscita", formatScoreOrDefault(record.clima)],
+      ['Apertura dei ragazzi al contatto', formatScoreOrDefault(record.apertura)],
+      ['Temi emersi nelle conversazioni', joinListOrDefault(record.temi, DEFAULT_TEXT.none)],
+      ['Episodi critici osservati', joinListOrDefault(record.criticita, DEFAULT_TEXT.none)],
+      ['Dettaglio criticità', record.criticitaNote || DEFAULT_TEXT.noDetail],
+      ['Contatti con la rete territoriale', joinListOrDefault(record.rete, DEFAULT_TEXT.none)],
+      ['Note e osservazioni', record.note || DEFAULT_TEXT.noNote],
+      ['Da segnalare a Pamela', record.urgenza || DEFAULT_TEXT.missing]
     ];
   }
 
-  function renderDetailSections(d, labels) {
-    const rows = detailRows(d);
+  function renderDetailSections(record, labels) {
+    const rows = detailRows(record);
     const labelSet = labels ? new Set(labels) : null;
     const visibleRows = labelSet ? rows.filter(([label]) => labelSet.has(label)) : rows;
     return visibleRows.map(([label, value]) => {
-      const isEmpty = typeof value === 'string' && EMPTY_VALUES.includes(value);
+      const isPlaceholder = typeof value === 'string' && PLACEHOLDER_VALUES.includes(value);
       const safeValue = escapeHtml(value);
-      return `<div class="detail-section"><strong>${escapeHtml(label)}</strong><span class="${isEmpty ? 'empty-value' : ''}">${safeValue}</span></div>`;
+      return `<div class="detail-section"><strong>${escapeHtml(label)}</strong><span class="${isPlaceholder ? 'empty-value' : ''}">${safeValue}</span></div>`;
     }).join('');
   }
 
@@ -805,7 +805,7 @@
     }
 
     container.innerHTML = filtered.map(({ key, data: d }) => {
-      const eduStr = listValue(d.educatori, DEFAULT_TEXT.missing);
+      const eduStr = joinListOrDefault(d.educatori, DEFAULT_TEXT.missing);
       const safeKey = escapeHtml(key);
       const keyParam = encodeURIComponent(key);
       const cardLabels = [
@@ -838,8 +838,8 @@
           <div class="record-stats">
             <div class="record-stat">👦 Ragazzi: <strong>${escapeHtml(d.ragazzi || 0)}</strong></div>
             <div class="record-stat">🆕 Nuovi: <strong>${escapeHtml(d.nuovi || 0)}</strong></div>
-            <div class="record-stat">😊 Clima: <strong>${escapeHtml(scoreValue(d.clima))}</strong></div>
-            <div class="record-stat">🤝 Apertura: <strong>${escapeHtml(scoreValue(d.apertura))}</strong></div>
+            <div class="record-stat">😊 Clima: <strong>${escapeHtml(formatScoreOrDefault(d.clima))}</strong></div>
+            <div class="record-stat">🤝 Apertura: <strong>${escapeHtml(formatScoreOrDefault(d.apertura))}</strong></div>
           </div>
           <div class="detail-panel" id="detail-${safeKey}">
             ${renderDetailSections(d, cardLabels)}
