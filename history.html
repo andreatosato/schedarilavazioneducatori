@@ -648,7 +648,13 @@
 
 <script>
   let pendingDeleteKey = null;
-  const EMPTY_VALUES = ['N/D', 'Nessuno', 'Nessun dettaglio', 'Nessuna nota'];
+  const DEFAULT_TEXT = {
+    missing: 'N/D',
+    none: 'Nessuno',
+    noDetail: 'Nessun dettaglio',
+    noNote: 'Nessuna nota'
+  };
+  const EMPTY_VALUES = Object.values(DEFAULT_TEXT);
 
   function getAllRecords() {
     const records = [];
@@ -728,30 +734,30 @@
   }
 
   function scoreValue(value) {
-    return value ? value + '/5' : 'N/D';
+    return value ? value + '/5' : DEFAULT_TEXT.missing;
   }
 
   function detailRows(d) {
     return [
       ['Data', formatDate(d.data)],
-      ['Ora inizio', d.oraInizio || 'N/D'],
-      ['Ora fine', d.oraFine || 'N/D'],
-      ['Luogo', d.luogo || 'N/D'],
-      ['Zona specifica', d.zona || 'N/D'],
-      ['Educatori presenti', listValue(d.educatori, 'N/D')],
-      ['Tipo uscita', d.tipo || 'N/D'],
+      ['Ora inizio', d.oraInizio || DEFAULT_TEXT.missing],
+      ['Ora fine', d.oraFine || DEFAULT_TEXT.missing],
+      ['Luogo', d.luogo || DEFAULT_TEXT.missing],
+      ['Zona specifica', d.zona || DEFAULT_TEXT.missing],
+      ['Educatori presenti', listValue(d.educatori, DEFAULT_TEXT.missing)],
+      ['Tipo uscita', d.tipo || DEFAULT_TEXT.missing],
       ['Numero ragazzi contattati', d.ragazzi || 0],
       ['Nuovi contatti', d.nuovi || 0],
-      ["Fascia d'età prevalente", listValue(d.fasce, 'N/D')],
-      ['Genere prevalente', d.genere || 'N/D'],
+      ["Fascia d'età prevalente", listValue(d.fasce, DEFAULT_TEXT.missing)],
+      ['Genere prevalente', d.genere || DEFAULT_TEXT.missing],
       ["Clima generale dell'uscita", scoreValue(d.clima)],
       ['Apertura dei ragazzi al contatto', scoreValue(d.apertura)],
-      ['Temi emersi nelle conversazioni', listValue(d.temi, 'Nessuno')],
-      ['Episodi critici osservati', listValue(d.criticita, 'Nessuno')],
-      ['Dettaglio criticità', d.criticitaNote || 'Nessun dettaglio'],
-      ['Contatti con la rete territoriale', listValue(d.rete, 'Nessuno')],
-      ['Note e osservazioni', d.note || 'Nessuna nota'],
-      ['Da segnalare a Pamela', d.urgenza || 'N/D']
+      ['Temi emersi nelle conversazioni', listValue(d.temi, DEFAULT_TEXT.none)],
+      ['Episodi critici osservati', listValue(d.criticita, DEFAULT_TEXT.none)],
+      ['Dettaglio criticità', d.criticitaNote || DEFAULT_TEXT.noDetail],
+      ['Contatti con la rete territoriale', listValue(d.rete, DEFAULT_TEXT.none)],
+      ['Note e osservazioni', d.note || DEFAULT_TEXT.noNote],
+      ['Da segnalare a Pamela', d.urgenza || DEFAULT_TEXT.missing]
     ];
   }
 
@@ -760,8 +766,8 @@
     const labelSet = labels ? new Set(labels) : null;
     const visibleRows = labelSet ? rows.filter(([label]) => labelSet.has(label)) : rows;
     return visibleRows.map(([label, value]) => {
-      const safeValue = escapeHtml(value);
       const isEmpty = EMPTY_VALUES.includes(String(value));
+      const safeValue = escapeHtml(value);
       return `<div class="detail-section"><strong>${escapeHtml(label)}</strong><span class="${isEmpty ? 'empty-value' : ''}">${safeValue}</span></div>`;
     }).join('');
   }
@@ -799,7 +805,7 @@
     }
 
     container.innerHTML = filtered.map(({ key, data: d }) => {
-      const eduStr = listValue(d.educatori, 'N/D');
+      const eduStr = listValue(d.educatori, DEFAULT_TEXT.missing);
       const safeKey = escapeHtml(key);
       const keyParam = encodeURIComponent(key);
       const cardLabels = [
@@ -817,7 +823,7 @@
       return `
         <div class="record-card ${urgencyClass(d.urgenza)}" id="card-${safeKey}">
           <div class="record-header">
-            <div class="record-date">📅 ${formatDate(d.data)}</div>
+            <div class="record-date">📅 ${escapeHtml(formatDate(d.data))}</div>
             <div class="record-badges">
               ${d.luogo ? `<span class="badge badge-luogo">${escapeHtml(d.luogo)}</span>` : ''}
               ${d.tipo ? `<span class="badge badge-tipo">${escapeHtml(d.tipo)}</span>` : ''}
@@ -878,7 +884,7 @@
     try {
       const data = JSON.parse(localStorage.getItem(key));
       document.getElementById('detail-modal-title').textContent = 'Scheda completa del ' + formatDate(data.data);
-      document.getElementById('detail-modal-subtitle').textContent = [data.luogo, data.zona].filter(Boolean).join(' · ') || 'Dettaglio completo';
+      document.getElementById('detail-modal-subtitle').textContent = [data.luogo, data.zona].filter(Boolean).join(' · ').replace(/\s+/g, ' ').trim() || 'Dettaglio completo';
       document.getElementById('detail-modal-content').innerHTML = renderDetailSections(data);
       document.getElementById('detail-modal').classList.add('open');
       document.body.style.overflow = 'hidden';
