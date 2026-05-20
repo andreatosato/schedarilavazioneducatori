@@ -337,7 +337,8 @@
     margin-bottom: 10px;
   }
 
-  .detail-section strong {
+  .detail-section strong,
+  .detail-section dt {
     display: block;
     font-size: 11px;
     text-transform: uppercase;
@@ -345,6 +346,10 @@
     color: var(--primary);
     margin-bottom: 3px;
     font-weight: 700;
+  }
+
+  .detail-section dd {
+    margin: 0;
   }
 
   .detail-section .empty-value {
@@ -656,6 +661,7 @@
     noNote: 'Nessuna nota'
   };
   const PLACEHOLDER_VALUES = Object.values(DEFAULT_TEXT);
+  const DETAIL_MODAL_TITLE_PREFIX = 'Scheda completa del ';
 
   function getAllRecords() {
     const records = [];
@@ -722,6 +728,7 @@
   }
 
   function escapeHtml(value) {
+    if (Array.isArray(value)) value = value.join(', ');
     return String(value == null ? '' : value)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -731,7 +738,7 @@
   }
 
   function joinListOrDefault(values, defaultText) {
-    return (values || []).length ? values.join(', ') : defaultText;
+    return (values || []).length ? values.map(value => String(value)).join(', ') : defaultText;
   }
 
   function formatScoreOrDefault(value) {
@@ -769,7 +776,7 @@
     return visibleRows.map(([label, value]) => {
       const isPlaceholder = typeof value === 'string' && PLACEHOLDER_VALUES.includes(value);
       const safeValue = escapeHtml(value);
-      return `<div class="detail-section"><strong>${escapeHtml(label)}</strong><span class="${isPlaceholder ? 'empty-value' : ''}">${safeValue}</span></div>`;
+      return `<dl class="detail-section"><dt>${escapeHtml(label)}</dt><dd class="${isPlaceholder ? 'empty-value' : ''}">${safeValue}</dd></dl>`;
     }).join('');
   }
 
@@ -885,7 +892,7 @@
     try {
       const data = JSON.parse(localStorage.getItem(key));
       lastDetailTrigger = document.activeElement;
-      document.getElementById('detail-modal-title').textContent = 'Scheda completa del ' + formatDate(data.data);
+      document.getElementById('detail-modal-title').textContent = DETAIL_MODAL_TITLE_PREFIX + formatDate(data.data);
       document.getElementById('detail-modal-subtitle').textContent = [data.luogo, data.zona].filter(Boolean).join(' · ') || 'Dettaglio completo';
       document.getElementById('detail-modal-content').innerHTML = renderDetailSections(data);
       document.getElementById('detail-modal').classList.add('open');
@@ -911,7 +918,7 @@
       return;
     }
     if (event.key !== 'Tab') return;
-    const focusable = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    const focusable = modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
     if (!first || !last) return;
