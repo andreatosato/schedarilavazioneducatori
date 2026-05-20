@@ -766,7 +766,7 @@
     const labelSet = labels ? new Set(labels) : null;
     const visibleRows = labelSet ? rows.filter(([label]) => labelSet.has(label)) : rows;
     return visibleRows.map(([label, value]) => {
-      const isEmpty = EMPTY_VALUES.includes(String(value));
+      const isEmpty = typeof value === 'string' && EMPTY_VALUES.includes(value);
       const safeValue = escapeHtml(value);
       return `<div class="detail-section"><strong>${escapeHtml(label)}</strong><span class="${isEmpty ? 'empty-value' : ''}">${safeValue}</span></div>`;
     }).join('');
@@ -884,7 +884,7 @@
     try {
       const data = JSON.parse(localStorage.getItem(key));
       document.getElementById('detail-modal-title').textContent = 'Scheda completa del ' + formatDate(data.data);
-      document.getElementById('detail-modal-subtitle').textContent = [data.luogo, data.zona].filter(Boolean).join(' · ').replace(/\s+/g, ' ').trim() || 'Dettaglio completo';
+      document.getElementById('detail-modal-subtitle').textContent = [data.luogo, data.zona].filter(Boolean).join(' · ') || 'Dettaglio completo';
       document.getElementById('detail-modal-content').innerHTML = renderDetailSections(data);
       document.getElementById('detail-modal').classList.add('open');
       document.body.style.overflow = 'hidden';
