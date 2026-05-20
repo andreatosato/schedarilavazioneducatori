@@ -317,7 +317,7 @@
   }
 
   .detail-panel {
-    display: none;
+    display: block;
     margin-top: 12px;
     padding: 14px;
     background: var(--bg);
@@ -325,10 +325,6 @@
     font-size: 13px;
     line-height: 1.7;
     color: var(--text);
-  }
-
-  .detail-panel.open {
-    display: block;
   }
 
   .detail-section {
@@ -425,9 +421,102 @@
     background: var(--danger);
     color: white;
   }
+
+  /* Password gate */
+  .auth-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+
+  .auth-overlay.hidden {
+    display: none;
+  }
+
+  .auth-box {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 28px 24px;
+    max-width: 380px;
+    width: 100%;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    text-align: center;
+  }
+
+  .auth-box .auth-icon {
+    font-size: 40px;
+    margin-bottom: 10px;
+  }
+
+  .auth-box h2 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+
+  .auth-box p {
+    font-size: 13px;
+    color: var(--text-light);
+    margin-bottom: 18px;
+  }
+
+  .auth-box input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    color: var(--text);
+    background: white;
+    margin-bottom: 10px;
+  }
+
+  .auth-box input:focus {
+    outline: none;
+    border-color: var(--primary-light);
+  }
+
+  .auth-box button {
+    width: 100%;
+    padding: 12px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .auth-error {
+    color: var(--danger);
+    font-size: 13px;
+    font-weight: 600;
+    min-height: 18px;
+    margin-bottom: 8px;
+  }
 </style>
 </head>
 <body>
+
+<div class="auth-overlay" id="auth-overlay">
+  <div class="auth-box">
+    <div class="auth-icon">🔒</div>
+    <h2>Accesso protetto</h2>
+    <p>Inserisci la password per accedere allo storico delle schede.</p>
+    <div class="auth-error" id="auth-error"></div>
+    <input type="password" id="auth-input" placeholder="Password" autocomplete="off" onkeydown="if(event.key==='Enter'){submitAuth();}">
+    <button type="button" onclick="submitAuth()">Accedi</button>
+  </div>
+</div>
 
 <div class="container">
   <div class="header">
@@ -619,18 +708,6 @@
           </div>
         </div>`;
     }).join('');
-
-    // Toggle detail panels
-    filtered.forEach(({ key }) => {
-      const card = document.getElementById('card-' + key);
-      const detail = document.getElementById('detail-' + key);
-      if (card && detail) {
-        card.addEventListener('click', e => {
-          if (e.target.tagName === 'BUTTON') return;
-          detail.classList.toggle('open');
-        });
-      }
-    });
   }
 
   function buildText(d) {
@@ -765,8 +842,50 @@
     setTimeout(() => toast.classList.remove('show'), 2500);
   }
 
+  function getAuthDayKey() {
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = now.getFullYear();
+    return dd + mm + yyyy;
+  }
+
+  function getExpectedPassword() {
+    return 'Educaplay' + getAuthDayKey();
+  }
+
+  function submitAuth() {
+    const input = document.getElementById('auth-input');
+    const errorEl = document.getElementById('auth-error');
+    const expected = getExpectedPassword();
+    if (input.value === expected) {
+      sessionStorage.setItem('historyAuth', getAuthDayKey());
+      unlockHistory();
+    } else {
+      errorEl.textContent = 'Password errata. Riprova.';
+      input.value = '';
+      input.focus();
+    }
+  }
+
+  function unlockHistory() {
+    document.getElementById('auth-overlay').classList.add('hidden');
+    renderRecords();
+  }
+
+  function initAuth() {
+    if (sessionStorage.getItem('historyAuth') === getAuthDayKey()) {
+      unlockHistory();
+    } else {
+      // Clear any stale auth from a previous day
+      sessionStorage.removeItem('historyAuth');
+      const input = document.getElementById('auth-input');
+      if (input) input.focus();
+    }
+  }
+
   // Initialize
-  renderRecords();
+  initAuth();
 </script>
 </body>
 </html>
