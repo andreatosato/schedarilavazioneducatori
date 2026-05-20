@@ -291,7 +291,8 @@
     border-top: 1px solid var(--border);
   }
 
-  .btn-copy {
+  .btn-copy,
+  .btn-detail {
     flex: 1;
     padding: 8px;
     background: var(--bg);
@@ -302,6 +303,11 @@
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
+  }
+
+  .btn-detail {
+    background: var(--primary);
+    color: white;
   }
 
   .btn-delete {
@@ -331,7 +337,8 @@
     margin-bottom: 10px;
   }
 
-  .detail-section strong {
+  .detail-section strong,
+  .detail-section dt {
     display: block;
     font-size: 11px;
     text-transform: uppercase;
@@ -339,6 +346,14 @@
     color: var(--primary);
     margin-bottom: 3px;
     font-weight: 700;
+  }
+
+  .detail-section dd {
+    margin: 0;
+  }
+
+  .detail-section .empty-value {
+    color: var(--text-light);
   }
 
   .toast {
@@ -420,6 +435,73 @@
   .btn-confirm-delete {
     background: var(--danger);
     color: white;
+  }
+
+  .detail-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: white;
+    z-index: 250;
+    overflow-y: auto;
+  }
+
+  .detail-modal-overlay.open {
+    display: block;
+  }
+
+  .detail-modal {
+    max-width: 720px;
+    margin: 0 auto;
+    min-height: 100vh;
+    padding: 18px 16px 28px;
+  }
+
+  .detail-modal-header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+    margin: -18px -16px 18px;
+    padding: 18px 16px 14px;
+    background: white;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .detail-modal-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .detail-modal-subtitle {
+    font-size: 13px;
+    color: var(--text-light);
+    margin-top: 3px;
+  }
+
+  .btn-close-detail {
+    border: none;
+    border-radius: 999px;
+    width: 38px;
+    height: 38px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 20px;
+    font-weight: 700;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .detail-modal-content .detail-section {
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 
   /* Password gate */
@@ -554,10 +636,32 @@
   </div>
 </div>
 
+<div class="detail-modal-overlay" id="detail-modal" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
+  <div class="detail-modal">
+    <div class="detail-modal-header">
+      <div>
+        <div class="detail-modal-title" id="detail-modal-title">Scheda completa</div>
+        <div class="detail-modal-subtitle" id="detail-modal-subtitle"></div>
+      </div>
+      <button class="btn-close-detail" type="button" onclick="closeDetailModal()" aria-label="Chiudi">×</button>
+    </div>
+    <div class="detail-modal-content" id="detail-modal-content"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
   let pendingDeleteKey = null;
+  let lastDetailTrigger = null;
+  const DEFAULT_TEXT = {
+    missing: 'N/D',
+    none: 'Nessuno',
+    noDetail: 'Nessun dettaglio',
+    noNote: 'Nessuna nota'
+  };
+  const PLACEHOLDER_VALUES = Object.values(DEFAULT_TEXT);
+  const DETAIL_MODAL_TITLE_PREFIX = 'Scheda completa del ';
 
   function getAllRecords() {
     const records = [];
@@ -623,6 +727,59 @@
     return '<span class="badge badge-ok">🟢 OK</span>';
   }
 
+  function escapeHtml(value) {
+    if (Array.isArray(value)) value = value.join(', ');
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function joinListOrDefault(values, defaultText) {
+    return (values || []).length ? values.map(value => String(value)).join(', ') : defaultText;
+  }
+
+  function formatScoreOrDefault(value) {
+    return value != null ? value + '/5' : DEFAULT_TEXT.missing;
+  }
+
+  function detailRows(record) {
+    return [
+      ['Data', formatDate(record.data)],
+      ['Ora inizio', record.oraInizio || DEFAULT_TEXT.missing],
+      ['Ora fine', record.oraFine || DEFAULT_TEXT.missing],
+      ['Luogo', record.luogo || DEFAULT_TEXT.missing],
+      ['Zona specifica', record.zona || DEFAULT_TEXT.missing],
+      ['Educatori presenti', joinListOrDefault(record.educatori, DEFAULT_TEXT.missing)],
+      ['Tipo uscita', record.tipo || DEFAULT_TEXT.missing],
+      ['Numero ragazzi contattati', record.ragazzi || 0],
+      ['Nuovi contatti', record.nuovi || 0],
+      ["Fascia d'età prevalente", joinListOrDefault(record.fasce, DEFAULT_TEXT.missing)],
+      ['Genere prevalente', record.genere || DEFAULT_TEXT.missing],
+      ["Clima generale dell'uscita", formatScoreOrDefault(record.clima)],
+      ['Apertura dei ragazzi al contatto', formatScoreOrDefault(record.apertura)],
+      ['Temi emersi nelle conversazioni', joinListOrDefault(record.temi, DEFAULT_TEXT.none)],
+      ['Episodi critici osservati', joinListOrDefault(record.criticita, DEFAULT_TEXT.none)],
+      ['Dettaglio criticità', record.criticitaNote || DEFAULT_TEXT.noDetail],
+      ['Contatti con la rete territoriale', joinListOrDefault(record.rete, DEFAULT_TEXT.none)],
+      ['Note e osservazioni', record.note || DEFAULT_TEXT.noNote],
+      ['Da segnalare a Pamela', record.urgenza || DEFAULT_TEXT.missing]
+    ];
+  }
+
+  function renderDetailSections(record, labels) {
+    const rows = detailRows(record);
+    const labelSet = labels ? new Set(labels) : null;
+    const visibleRows = labelSet ? rows.filter(([label]) => labelSet.has(label)) : rows;
+    return visibleRows.map(([label, value]) => {
+      const isPlaceholder = typeof value === 'string' && PLACEHOLDER_VALUES.includes(value);
+      const safeValue = escapeHtml(value);
+      return `<dl class="detail-section"><dt>${escapeHtml(label)}</dt><dd class="${isPlaceholder ? 'empty-value' : ''}">${safeValue}</dd></dl>`;
+    }).join('');
+  }
+
   function renderRecords() {
     const search = document.getElementById('search-input').value.toLowerCase();
     const filterLuogo = document.getElementById('filter-luogo').value;
@@ -656,55 +813,49 @@
     }
 
     container.innerHTML = filtered.map(({ key, data: d }) => {
-      const eduStr = (d.educatori || []).join(', ') || 'N/D';
-      const temiStr = (d.temi || []).join(', ') || '—';
-      const critStr = (d.criticita || []).join(', ') || 'Nessuna';
-      const reteStr = (d.rete || []).join(', ') || 'Nessuno';
-      const fasceStr = (d.fasce || []).join(', ') || 'N/D';
+      const eduStr = joinListOrDefault(d.educatori, DEFAULT_TEXT.missing);
+      const safeKey = escapeHtml(key);
+      const keyParam = encodeURIComponent(key);
+      const cardLabels = [
+        "Fascia d'età prevalente",
+        'Genere prevalente',
+        "Clima generale dell'uscita",
+        'Apertura dei ragazzi al contatto',
+        'Temi emersi nelle conversazioni',
+        'Episodi critici osservati',
+        'Dettaglio criticità',
+        'Contatti con la rete territoriale',
+        'Note e osservazioni'
+      ];
 
       return `
-        <div class="record-card ${urgencyClass(d.urgenza)}" id="card-${key}">
+        <div class="record-card ${urgencyClass(d.urgenza)}" id="card-${safeKey}">
           <div class="record-header">
-            <div class="record-date">📅 ${formatDate(d.data)}</div>
+            <div class="record-date">📅 ${escapeHtml(formatDate(d.data))}</div>
             <div class="record-badges">
-              ${d.luogo ? `<span class="badge badge-luogo">${d.luogo}</span>` : ''}
-              ${d.tipo ? `<span class="badge badge-tipo">${d.tipo}</span>` : ''}
+              ${d.luogo ? `<span class="badge badge-luogo">${escapeHtml(d.luogo)}</span>` : ''}
+              ${d.tipo ? `<span class="badge badge-tipo">${escapeHtml(d.tipo)}</span>` : ''}
               ${urgencyBadge(d.urgenza)}
             </div>
           </div>
           <div class="record-meta">
-            🕐 ${d.oraInizio || '?'} – ${d.oraFine || '?'}
-            ${d.zona ? ` · ${d.zona}` : ''}
-            · 👥 ${eduStr}
+            🕐 ${escapeHtml(d.oraInizio || '?')} – ${escapeHtml(d.oraFine || '?')}
+            ${d.zona ? ` · ${escapeHtml(d.zona)}` : ''}
+            · 👥 ${escapeHtml(eduStr)}
           </div>
           <div class="record-stats">
-            <div class="record-stat">👦 Ragazzi: <strong>${d.ragazzi || 0}</strong></div>
-            <div class="record-stat">🆕 Nuovi: <strong>${d.nuovi || 0}</strong></div>
-            <div class="record-stat">😊 Clima: <strong>${d.clima || '–'}/5</strong></div>
-            <div class="record-stat">🤝 Apertura: <strong>${d.apertura || '–'}/5</strong></div>
+            <div class="record-stat">👦 Ragazzi: <strong>${escapeHtml(d.ragazzi || 0)}</strong></div>
+            <div class="record-stat">🆕 Nuovi: <strong>${escapeHtml(d.nuovi || 0)}</strong></div>
+            <div class="record-stat">😊 Clima: <strong>${escapeHtml(formatScoreOrDefault(d.clima))}</strong></div>
+            <div class="record-stat">🤝 Apertura: <strong>${escapeHtml(formatScoreOrDefault(d.apertura))}</strong></div>
           </div>
-          <div class="detail-panel" id="detail-${key}">
-            <div class="detail-section">
-              <strong>Fascia d'età</strong>${fasceStr}
-            </div>
-            <div class="detail-section">
-              <strong>Genere prevalente</strong>${d.genere || 'N/D'}
-            </div>
-            <div class="detail-section">
-              <strong>Temi emersi</strong>${temiStr}
-            </div>
-            <div class="detail-section">
-              <strong>Criticità</strong>${critStr}
-              ${d.criticitaNote ? `<br><em>${d.criticitaNote}</em>` : ''}
-            </div>
-            <div class="detail-section">
-              <strong>Rete territoriale</strong>${reteStr}
-            </div>
-            ${d.note ? `<div class="detail-section"><strong>Note</strong>${d.note}</div>` : ''}
+          <div class="detail-panel" id="detail-${safeKey}">
+            ${renderDetailSections(d, cardLabels)}
           </div>
           <div class="record-actions">
-            <button class="btn-copy" onclick="copyRecord('${key}')">📤 Copia testo</button>
-            <button class="btn-delete" onclick="askDelete('${key}')">🗑️</button>
+            <button class="btn-detail" onclick="openDetailModal(decodeURIComponent('${keyParam}'))">🔎 Scheda completa</button>
+            <button class="btn-copy" onclick="copyRecord(decodeURIComponent('${keyParam}'))">📤 Copia testo</button>
+            <button class="btn-delete" onclick="askDelete(decodeURIComponent('${keyParam}'))">🗑️</button>
           </div>
         </div>`;
     }).join('');
@@ -736,6 +887,49 @@
     text += `🔔 Urgenza: ${d.urgenza || 'N/D'}\n`;
     return text;
   }
+
+  function openDetailModal(key) {
+    try {
+      const data = JSON.parse(localStorage.getItem(key));
+      lastDetailTrigger = document.activeElement;
+      document.getElementById('detail-modal-title').textContent = DETAIL_MODAL_TITLE_PREFIX + formatDate(data.data);
+      document.getElementById('detail-modal-subtitle').textContent = [data.luogo, data.zona].filter(Boolean).join(' · ') || 'Dettaglio completo';
+      document.getElementById('detail-modal-content').innerHTML = renderDetailSections(data);
+      document.getElementById('detail-modal').classList.add('open');
+      document.body.style.overflow = 'hidden';
+      document.querySelector('.btn-close-detail').focus();
+    } catch (e) {
+      showToast('Errore nel visualizzare la scheda');
+    }
+  }
+
+  function closeDetailModal() {
+    document.getElementById('detail-modal').classList.remove('open');
+    document.body.style.overflow = '';
+    if (lastDetailTrigger) lastDetailTrigger.focus();
+    lastDetailTrigger = null;
+  }
+
+  document.addEventListener('keydown', event => {
+    const modal = document.getElementById('detail-modal');
+    if (!modal.classList.contains('open')) return;
+    if (event.key === 'Escape') {
+      closeDetailModal();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first || !last) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
 
   function copyRecord(key) {
     try {
