@@ -631,7 +631,7 @@
   </div>
 </div>
 
-<div class="detail-modal-overlay" id="detail-modal">
+<div class="detail-modal-overlay" id="detail-modal" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
   <div class="detail-modal">
     <div class="detail-modal-header">
       <div>
@@ -648,6 +648,7 @@
 
 <script>
   let pendingDeleteKey = null;
+  let lastDetailTrigger = null;
   const DEFAULT_TEXT = {
     missing: 'N/D',
     none: 'Nessuno',
@@ -734,7 +735,7 @@
   }
 
   function formatScoreOrDefault(value) {
-    return value ? value + '/5' : DEFAULT_TEXT.missing;
+    return value != null ? value + '/5' : DEFAULT_TEXT.missing;
   }
 
   function detailRows(record) {
@@ -883,11 +884,13 @@
   function openDetailModal(key) {
     try {
       const data = JSON.parse(localStorage.getItem(key));
+      lastDetailTrigger = document.activeElement;
       document.getElementById('detail-modal-title').textContent = 'Scheda completa del ' + formatDate(data.data);
       document.getElementById('detail-modal-subtitle').textContent = [data.luogo, data.zona].filter(Boolean).join(' · ') || 'Dettaglio completo';
       document.getElementById('detail-modal-content').innerHTML = renderDetailSections(data);
       document.getElementById('detail-modal').classList.add('open');
       document.body.style.overflow = 'hidden';
+      document.querySelector('.btn-close-detail').focus();
     } catch (e) {
       showToast('Errore nel visualizzare la scheda');
     }
@@ -896,7 +899,30 @@
   function closeDetailModal() {
     document.getElementById('detail-modal').classList.remove('open');
     document.body.style.overflow = '';
+    if (lastDetailTrigger) lastDetailTrigger.focus();
+    lastDetailTrigger = null;
   }
+
+  document.addEventListener('keydown', event => {
+    const modal = document.getElementById('detail-modal');
+    if (!modal.classList.contains('open')) return;
+    if (event.key === 'Escape') {
+      closeDetailModal();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first || !last) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
 
   function copyRecord(key) {
     try {
