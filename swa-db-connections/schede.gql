@@ -1,0 +1,25 @@
+# GraphQL schema used by Data API Builder to expose the Cosmos DB "schede"
+# container through the Static Web Apps database connection (/data-api/graphql).
+# The fields mirror the form data persisted by the app.
+type Scheda @model {
+  id: ID!
+  data: String
+  oraInizio: String
+  oraFine: String
+  luogo: String
+  zona: String
+  educatori: [String]
+  tipo: String
+  ragazzi: Int
+  fasce: [String]
+  genere: String
+  nuovi: Int
+  clima: Int
+  apertura: Int
+  temi: [String]
+  criticita: [String]
+  criticitaNote: String
+  rete: [String]
+  note: String
+  urgenza: String
+}

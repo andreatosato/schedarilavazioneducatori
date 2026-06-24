@@ -35,6 +35,8 @@ jobs:
           app_location: '/'
           api_location: ''
           output_location: ''
+          # Data API Builder config for the Cosmos DB database connection.
+          data_api_location: 'swa-db-connections'
           skip_app_build: true
 
   close_pull_request:
