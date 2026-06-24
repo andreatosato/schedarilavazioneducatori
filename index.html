@@ -989,7 +989,7 @@
 
   async function updateRecordsCount() {
     const count = await getCosmosRecordsCount();
-    document.getElementById('records-count').textContent = count === null ? '—' : count;
+    document.getElementById('records-count').textContent = count === null ? 'N/D' : count;
   }
 
   function createRecordIdSuffix() {
@@ -1039,19 +1039,19 @@
         body: JSON.stringify({ query: COUNT_SCHEDE_QUERY })
       });
       if (!response.ok) {
-        console.warn('Errore conteggio schede Cosmos DB', response.status, response.statusText);
+        console.warn('Errore HTTP nel conteggio schede da Cosmos DB', response.status, response.statusText);
         return null;
       }
 
       const result = await response.json();
       if (result.errors && result.errors.length > 0) {
-        console.warn('Errore conteggio schede Cosmos DB', result.errors);
+        console.warn('Errori GraphQL nel conteggio schede da Cosmos DB', result.errors);
         return null;
       }
       const items = result.data && result.data.schede && result.data.schede.items;
       return Array.isArray(items) ? items.length : null;
     } catch (e) {
-      console.warn('Errore conteggio schede Cosmos DB', e);
+      console.warn('Errore di rete o parsing nel conteggio schede da Cosmos DB', e);
       return null;
     }
   }
