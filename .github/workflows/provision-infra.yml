@@ -49,17 +49,24 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Check Azure CLI
-        run: command -v az || { echo "::error::Azure CLI not found in runner environment (unexpected)"; exit 1; }
+        run: |
+          command -v az || {
+            echo "::error::Azure CLI not found. It should be pre-installed on GitHub-hosted runners; check the runner image/configuration."
+            exit 1
+          }
 
       - name: Validate Bicep
         run: |
           set -euo pipefail
           az bicep build --file infra/main.bicep --outfile "$RUNNER_TEMP/main.json"
-          echo "Bicep template validation successful."
+          echo "Bicep template validation successful for mode=${{ github.event.inputs.mode }}."
 
       - name: Manual deployment instructions
         if: ${{ github.event.inputs.mode == 'validate' }}
         run: |
+          set -euo pipefail
+          : "${RESOURCE_GROUP:?RESOURCE_GROUP is required}"
+          : "${LOCATION:?LOCATION is required}"
           cat <<EOF
           Bicep validation completed.
 
@@ -99,13 +106,8 @@ jobs:
           if [ "$status" -ne 0 ]; then
             printf '%s\n' "$login_output" >&2
             if printf '%s\n' "$login_output" | grep -q 'AADSTS53003'; then
-              message=$(cat <<'EOF'
-          Azure blocked token issuance with AADSTS53003.
-          Run mode=validate and deploy from Azure Cloud Shell/trusted session,
-          or ask the tenant administrator to allow this service principal.
-          EOF
-              )
-              echo "::error title=Azure login blocked::$message"
+              echo "::error title=Azure login blocked::Azure blocked token issuance with AADSTS53003."
+              echo "::error::Run mode=validate and deploy from Azure Cloud Shell/trusted session, or ask the tenant administrator to allow this service principal."
             fi
             exit "$status"
           fi
