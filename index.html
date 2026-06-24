@@ -790,9 +790,18 @@
   const RECORD_PREFIX = 'scheda_';
   const RECORD_STORAGE_NAMES = ['localStorage', 'sessionStorage'];
   const SAVE_MESSAGES = {
+    cosmosDb: '✅ Scheda salvata su Cosmos DB!',
     localStorage: '✅ Scheda salvata!',
     sessionStorage: '✅ Scheda salvata per questa sessione!'
   };
+  const DATA_API_GRAPHQL_ENDPOINT = '/data-api/graphql';
+  const CREATE_SCHEDA_MUTATION = `
+    mutation CreateScheda($item: CreateSchedaInput!) {
+      createScheda(item: $item) {
+        id
+      }
+    }
+  `;
 
   function changeCount(field, delta) {
     counts[field] = Math.max(0, counts[field] + delta);
@@ -900,7 +909,7 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function saveForm() {
+  async function saveForm() {
     const formData = getFormData();
     if (!formData.data) {
       showToast('⚠️ Inserisci la data!', '#EA4335');
@@ -915,7 +924,8 @@
       return;
     }
     const key = RECORD_PREFIX + (formData.data || 'nodata') + '_' + Date.now();
-    const savedStorage = saveRecord(key, formData);
+    formData.id = key;
+    const savedStorage = await saveRecord(key, formData);
     if (!savedStorage) {
       showToast('⚠️ Impossibile salvare: controlla le impostazioni del browser.', '#EA4335');
       return;
@@ -994,8 +1004,17 @@
     }
   }
 
-  function saveRecord(key, formData) {
+  async function saveRecord(key, formData) {
     const serialized = JSON.stringify(formData);
+    if (await saveRecordToCosmos(formData)) {
+      cacheRecordLocally(key, serialized);
+      return 'cosmosDb';
+    }
+
+    return cacheRecordLocally(key, serialized);
+  }
+
+  function cacheRecordLocally(key, serialized) {
     for (const storageName of RECORD_STORAGE_NAMES) {
       const storage = getStorage(storageName);
       if (!storage) continue;
@@ -1008,6 +1027,35 @@
       }
     }
     return null;
+  }
+
+  async function saveRecordToCosmos(formData) {
+    if (typeof fetch !== 'function') return false;
+
+    try {
+      const response = await fetch(DATA_API_GRAPHQL_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: CREATE_SCHEDA_MUTATION,
+          variables: { item: formData }
+        })
+      });
+      if (!response.ok) {
+        console.warn('Errore salvataggio su Cosmos DB', response.status, response.statusText);
+        return false;
+      }
+
+      const result = await response.json();
+      if (result.errors && result.errors.length > 0) {
+        console.warn('Errore salvataggio su Cosmos DB', result.errors);
+        return false;
+      }
+      return Boolean(result.data && result.data.createScheda);
+    } catch (e) {
+      console.warn('Errore salvataggio su Cosmos DB', e);
+      return false;
+    }
   }
 
   // Initialize
