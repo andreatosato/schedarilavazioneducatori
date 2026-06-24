@@ -58,7 +58,7 @@ jobs:
             --username "$AZURE_CLIENT_ID" \
             --password "$AZURE_CLIENT_SECRET" \
             --tenant "$AZURE_TENANT_ID" >/dev/null 2>"$AZ_LOGIN_ERROR_LOG"; then
-            if grep -Eq "AADSTS53003|Access has been blocked by Conditional Access policies" "$AZ_LOGIN_ERROR_LOG" 2>/dev/null; then
+            if grep -q "AADSTS53003" "$AZ_LOGIN_ERROR_LOG" 2>/dev/null; then
               echo "::warning::Skipping COSMOS_CONNECTIONSTRING update because Conditional Access blocked service principal login. Cosmos-backed API calls may fail until the setting is applied."
               exit 0
             fi
