@@ -92,9 +92,10 @@ resource cosmosContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/con
 
 // Reference the already-deployed Static Web App so the deployment can publish
 // the Cosmos DB connection string as an application setting. This avoids the
-// error-prone manual `az staticwebapp appsettings set` command, where shell
-// quoting of the connection string (it contains `=` and `;`) can corrupt the
-// COSMOS_CONNECTIONSTRING key.
+// error-prone manual `az staticwebapp appsettings set` command, where unquoted
+// `=` and `;` in the connection string make the shell split the value into
+// extra tokens that are parsed as invalid setting keys
+// (e.g. `App setting key ... is invalid`).
 resource staticWebApp 'Microsoft.Web/staticSites@2024-04-01' existing = if (configureStaticWebAppSettings) {
   name: staticWebAppName
 }

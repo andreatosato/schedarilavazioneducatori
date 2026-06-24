@@ -135,7 +135,7 @@ Al termine, gli output contengono i nomi di account, database e container Cosmos
    provisioning in `mode=deploy` (o i comandi manuali equivalenti): non serve lanciare
    `az staticwebapp appsettings set` a mano.
 
-   > ℹ️ Imposta la connection string da Bicep evita gli errori di quoting della shell:
+   > ℹ️ Impostare la connection string da Bicep evita gli errori di quoting della shell:
    > la stringa contiene `=` e `;`, perciò il comando manuale
    > `az staticwebapp appsettings set ... COSMOS_CONNECTIONSTRING="..."` può corrompere
    > la chiave (es. `App setting key ... is invalid`). Se la Static Web App non esiste
