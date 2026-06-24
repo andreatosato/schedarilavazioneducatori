@@ -1,13 +1,17 @@
-name: Provision Azure Infrastructure
+name: Provision Cosmos DB Free Tier
 
-# Provisions ALL the Azure infrastructure (Static Web App + Cosmos DB) by
-# running infra/main.bicep. Authentication uses OpenID Connect (OIDC) with a
-# federated credential, so NO long-lived secret/password is stored in the repo.
+# Provisions only the Cosmos DB Free Tier resources by running infra/main.bicep.
+# Authentication uses an Azure service principal secret because OIDC token
+# issuance can be blocked by tenant Conditional Access policies.
 #
-# Required GitHub Actions secrets (Settings -> Secrets and variables -> Actions):
-#   AZURE_CLIENT_ID        - Application (client) ID of the Entra ID app/service principal
-#   AZURE_TENANT_ID        - Entra ID tenant ID
-#   AZURE_SUBSCRIPTION_ID  - Target Azure subscription ID
+# Required GitHub Actions secret (Settings -> Secrets and variables -> Actions):
+#   AZURE_CREDENTIALS - JSON credentials for an Azure service principal:
+#     {
+#       "clientId": "<application-client-id>",
+#       "clientSecret": "<client-secret>",
+#       "subscriptionId": "<subscription-id>",
+#       "tenantId": "<tenant-id>"
+#     }
 #
 # Optional GitHub Actions variables:
 #   AZURE_RESOURCE_GROUP   - Resource group name (default: rg-strade-aperte)
@@ -26,41 +30,44 @@ on:
         default: ''
 
 permissions:
-  id-token: write
   contents: read
 
 jobs:
   provision:
     runs-on: ubuntu-latest
-    name: Provision infrastructure
+    name: Provision Cosmos DB
     env:
       RESOURCE_GROUP: ${{ github.event.inputs.resource_group || vars.AZURE_RESOURCE_GROUP || 'rg-strade-aperte' }}
       LOCATION: ${{ github.event.inputs.location || vars.AZURE_LOCATION || 'westeurope' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Azure login (OIDC)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Azure login
+        env:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+        run: |
+          set -euo pipefail
+          CLIENT_ID="$(python3 -c 'import json, os; print(json.loads(os.environ["AZURE_CREDENTIALS"])["clientId"])')"
+          CLIENT_SECRET="$(python3 -c 'import json, os; print(json.loads(os.environ["AZURE_CREDENTIALS"])["clientSecret"])')"
+          SUBSCRIPTION_ID="$(python3 -c 'import json, os; print(json.loads(os.environ["AZURE_CREDENTIALS"])["subscriptionId"])')"
+          TENANT_ID="$(python3 -c 'import json, os; print(json.loads(os.environ["AZURE_CREDENTIALS"])["tenantId"])')"
+
+          az login \
+            --service-principal \
+            --username "$CLIENT_ID" \
+            --password "$CLIENT_SECRET" \
+            --tenant "$TENANT_ID" \
+            --output none
+          az account set --subscription "$SUBSCRIPTION_ID"
 
       - name: Create resource group
-        uses: azure/cli@v2
-        with:
-          azcliversion: latest
-          inlineScript: |
-            az group create --name "$RESOURCE_GROUP" --location "$LOCATION"
+        run: az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
 
       - name: Deploy Bicep
-        uses: azure/cli@v2
-        with:
-          azcliversion: latest
-          inlineScript: |
-            az deployment group create \
-              --resource-group "$RESOURCE_GROUP" \
-              --template-file infra/main.bicep \
-              --parameters infra/main.bicepparam \
-              --query "properties.outputs" -o json
+        run: |
+          az deployment group create \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file infra/main.bicep \
+            --parameters infra/main.bicepparam \
+            --query "properties.outputs" -o json

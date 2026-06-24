@@ -1,10 +1,7 @@
-// Bicep template that provisions ALL the Azure infrastructure for the
-// "Strade Aperte" app, end to end:
-//   * Azure Static Web App (Free plan) that hosts the static site.
-//   * Azure Cosmos DB for NoSQL (Free Tier) that stores the schede.
-//   * A Static Web Apps "database connection" that exposes Cosmos DB
-//     through the built-in Data API Builder (GraphQL at /data-api/graphql),
-//     so the frontend can persist records without any custom server code.
+// Bicep template that provisions only the Azure Cosmos DB for NoSQL
+// Free Tier resources used by the "Strade Aperte" app:
+//   * Cosmos DB account with the lifetime Free Tier enabled.
+//   * Shared-throughput SQL database and the schede container.
 //
 // Everything is created automatically by a single deployment, e.g.:
 //   az group create --name <rg-name> --location westeurope
@@ -18,26 +15,8 @@ targetScope = 'resourceGroup'
 @description('Base name used to derive the resource names.')
 param name string = 'black-sand-00abc5803'
 
-@description('Location for the Static Web App. Only a subset of regions support Static Web Apps.')
-@allowed([
-  'westeurope'
-  'northeurope'
-  'eastus2'
-  'centralus'
-  'westus2'
-  'eastasia'
-])
-param location string = 'westeurope'
-
 @description('Location for the Cosmos DB account. Defaults to the resource group location.')
 param cosmosLocation string = resourceGroup().location
-
-@description('Pricing tier (SKU) for the Static Web App.')
-@allowed([
-  'Free'
-  'Standard'
-])
-param sku string = 'Free'
 
 @description('Enable the Cosmos DB lifetime Free Tier (1000 RU/s throughput and 25 GB storage free). Only one free-tier account is allowed per subscription, so set this to false if the subscription already has one.')
 param enableCosmosFreeTier bool = true
@@ -105,44 +84,11 @@ resource cosmosContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/con
   }
 }
 
-resource staticWebApp 'Microsoft.Web/staticSites@2024-04-01' = {
-  name: name
-  location: location
-  tags: tags
-  sku: {
-    name: sku
-    tier: sku
-  }
-  properties: {
-    // The app content is published from CI using the deployment token,
-    // so no source-control provider is configured on the resource itself.
-    allowConfigFileUpdates: true
-    stagingEnvironmentPolicy: 'Enabled'
-  }
-}
-
-// Links the Cosmos DB account to the Static Web App. The platform reads the
-// Data API Builder config from the `swa-db-connections` folder in the repo and
-// serves the database at /data-api/graphql. The connection string is injected
-// as the DATABASE_CONNECTION_STRING value the config references.
-resource databaseConnection 'Microsoft.Web/staticSites/databaseConnections@2024-04-01' = {
-  parent: staticWebApp
-  name: 'default'
-  properties: {
-    resourceId: cosmosAccount.id
-    region: cosmosLocation
-    connectionString: cosmosAccount.listConnectionStrings().connectionStrings[0].connectionString
-  }
-}
-
-@description('The name of the provisioned Static Web App.')
-output staticWebAppName string = staticWebApp.name
-
-@description('The default public hostname of the Static Web App.')
-output defaultHostname string = staticWebApp.properties.defaultHostname
-
-@description('The full public URL of the app.')
-output appUrl string = 'https://${staticWebApp.properties.defaultHostname}'
-
 @description('The name of the provisioned Cosmos DB account.')
 output cosmosAccountName string = cosmosAccount.name
+
+@description('The name of the provisioned Cosmos DB SQL database.')
+output cosmosDatabaseName string = cosmosDatabase.name
+
+@description('The name of the provisioned Cosmos DB SQL container.')
+output cosmosContainerName string = cosmosContainer.name
