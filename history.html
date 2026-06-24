@@ -706,7 +706,8 @@
       if (!storage) continue;
       try {
         const value = storage.getItem(key);
-        if (value !== null && value.trim() !== '') return JSON.parse(value);
+        if (typeof value !== 'string' || value.trim() === '') continue;
+        return JSON.parse(value);
       } catch (e) {
         // try the next available storage
       }
@@ -844,7 +845,8 @@
 
     container.innerHTML = filtered.map(({ key, data: d, storageName }) => {
       const eduStr = joinListOrDefault(d.educatori, DEFAULT_TEXT.missing);
-      const safeCardId = escapeHtml(storageName + '-' + key);
+      const cardId = (storageName + '-' + key).replace(/[^A-Za-z0-9_-]/g, '_');
+      const safeCardId = escapeHtml(cardId);
       const keyParam = encodeURIComponent(key);
       const cardLabels = [
         "Fascia d'età prevalente",
@@ -921,7 +923,10 @@
   function openDetailModal(key, storageName) {
     try {
       const data = getRecordByKey(key, storageName);
-      if (!data) throw new Error('Record not found');
+      if (!data) {
+        showToast('Impossibile caricare la scheda');
+        return;
+      }
       lastDetailTrigger = document.activeElement;
       document.getElementById('detail-modal-title').textContent = DETAIL_MODAL_TITLE_PREFIX + formatDate(data.data);
       document.getElementById('detail-modal-subtitle').textContent = [data.luogo, data.zona].filter(Boolean).join(' · ') || 'Dettaglio completo';
@@ -965,7 +970,10 @@
   function copyRecord(key, storageName) {
     try {
       const data = getRecordByKey(key, storageName);
-      if (!data) throw new Error('Record not found');
+      if (!data) {
+        showToast('Impossibile copiare la scheda');
+        return;
+      }
       const text = buildText(data);
       navigator.clipboard.writeText(text).then(() => {
         showToast('📋 Copiato!');
