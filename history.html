@@ -1089,7 +1089,8 @@
       } catch (e) {
         console.warn('Errore eliminazione scheda da Cosmos DB', e);
         closeDeleteModal();
-        showToast(`Errore durante l’eliminazione${e.message ? ': ' + e.message : ''}`, 'var(--danger)');
+        const message = e.message ? `Errore durante l’eliminazione: ${e.message}` : 'Errore durante l’eliminazione';
+        showToast(message, 'var(--danger)');
       }
     }
   }
