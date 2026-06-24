@@ -779,7 +779,7 @@
 
   <button class="submit-btn" onclick="saveForm()">💾 Salva scheda</button>
   <button class="export-btn" onclick="exportText()">📤 Copia come testo (per WhatsApp/Email)</button>
-  <a class="history-btn" href="history.html">📋 Vedi storico schede (<span id="records-count">0</span>)</a>
+  <a class="history-btn" href="history.html">📋 Vedi storico schede</a>
 
   <div class="toast" id="toast">Scheda salvata!</div>
 </div>
@@ -787,7 +787,6 @@
 <script>
   const counts = { ragazzi: 0, nuovi: 0 };
   const scales = { clima: 0, apertura: 0 };
-  let recordsCount = 0;
   const RECORD_PREFIX = 'scheda_';
   const SAVE_MESSAGE = '✅ Scheda salvata su Cosmos DB!';
   const DATA_API_GRAPHQL_ENDPOINT = '/data-api/graphql';
@@ -795,15 +794,6 @@
     mutation CreateScheda($item: CreateSchedaInput!) {
       createScheda(item: $item) {
         id
-      }
-    }
-  `;
-  const COUNT_SCHEDE_QUERY = `
-    query CountSchede {
-      schede {
-        items {
-          id
-        }
       }
     }
   `;
@@ -935,7 +925,6 @@
       showToast('⚠️ Impossibile salvare su Cosmos DB. Riprova tra poco.', '#EA4335');
       return;
     }
-    incrementRecordsCount();
     showToast(SAVE_MESSAGE);
     setTimeout(resetForm, 1800);
   }
@@ -988,24 +977,6 @@
     setTimeout(() => toast.classList.remove('show'), 2500);
   }
 
-  async function updateRecordsCount() {
-    const count = await getCosmosRecordsCount();
-    recordsCount = count === null ? 0 : count;
-    renderRecordsCount(count !== null);
-  }
-
-  function incrementRecordsCount() {
-    recordsCount += 1;
-    renderRecordsCount(true);
-  }
-
-  function renderRecordsCount(isSynced) {
-    const countEl = document.getElementById('records-count');
-    countEl.textContent = recordsCount;
-    countEl.title = isSynced ? '' : 'Conteggio Cosmos DB non disponibile';
-    countEl.setAttribute('aria-label', isSynced ? `${recordsCount} schede` : `${recordsCount} schede, conteggio Cosmos DB non disponibile`);
-  }
-
   function createRecordIdSuffix() {
     if (window.crypto && typeof window.crypto.randomUUID === 'function') {
       return window.crypto.randomUUID();
@@ -1043,36 +1014,8 @@
     }
   }
 
-  async function getCosmosRecordsCount() {
-    if (typeof fetch !== 'function') return null;
-
-    try {
-      const response = await fetch(DATA_API_GRAPHQL_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: COUNT_SCHEDE_QUERY })
-      });
-      if (!response.ok) {
-        console.warn('Errore HTTP nel conteggio schede da Cosmos DB', response.status, response.statusText);
-        return null;
-      }
-
-      const result = await response.json();
-      if (result.errors && result.errors.length > 0) {
-        console.warn('Errori GraphQL nel conteggio schede da Cosmos DB', result.errors);
-        return null;
-      }
-      const items = result.data?.schede?.items;
-      return Array.isArray(items) ? items.length : null;
-    } catch (e) {
-      console.warn('Errore di rete o parsing nel conteggio schede da Cosmos DB', e);
-      return null;
-    }
-  }
-
   // Initialize
   document.getElementById('data').valueAsDate = new Date();
-  updateRecordsCount();
 </script>
 
 </body>
