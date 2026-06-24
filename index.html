@@ -925,7 +925,7 @@
       showToast('⚠️ Seleziona almeno un educatore!', '#EA4335');
       return;
     }
-    const key = RECORD_PREFIX + (formData.data || 'nodata') + '_' + Date.now();
+    const key = RECORD_PREFIX + (formData.data || 'nodata') + '_' + createRecordIdSuffix();
     const record = { ...formData, id: key };
     const savedStorage = await saveRecord(key, record);
     if (!savedStorage) {
@@ -1006,9 +1006,16 @@
     }
   }
 
-  async function saveRecord(key, formData) {
-    const serialized = JSON.stringify(formData);
-    if (await saveRecordToCosmos(formData)) {
+  function createRecordIdSuffix() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID();
+    }
+    return Date.now() + '_' + Math.random().toString(36).slice(2);
+  }
+
+  async function saveRecord(key, record) {
+    const serialized = JSON.stringify(record);
+    if (await saveRecordToCosmos(record)) {
       const cachedStorage = cacheRecordLocally(key, serialized);
       if (!cachedStorage && !localCacheWarningShown) {
         console.warn(LOCAL_CACHE_WARNING);
