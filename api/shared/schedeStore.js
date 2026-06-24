@@ -34,12 +34,16 @@ let cachedContainer;
 
 class ValidationError extends Error {}
 
+class ConfigurationError extends Error {}
+
 function getContainer() {
   if (cachedContainer) return cachedContainer;
 
-  const connectionString = process.env.COSMOS_CONNECTIONSTRING;
+  const connectionString = (process.env.COSMOS_CONNECTIONSTRING || '').trim();
   if (!connectionString) {
-    throw new Error('COSMOS_CONNECTIONSTRING non configurata');
+    throw new ConfigurationError(
+      'COSMOS_CONNECTIONSTRING non configurata: impostala nelle Application settings della Static Web App.'
+    );
   }
 
   const client = new CosmosClient(connectionString);
@@ -112,13 +116,18 @@ function toHttpError(error) {
   if (error instanceof ValidationError) {
     return { status: 400, body: { error: error.message } };
   }
+  if (error instanceof ConfigurationError) {
+    return { status: 503, body: { error: error.message } };
+  }
   return { status: 500, body: { error: 'Errore interno durante l’accesso a Cosmos DB' } };
 }
 
 module.exports = {
   ValidationError,
+  ConfigurationError,
   createScheda,
   deleteScheda,
+  getContainer,
   listSchede,
   normalizeScheda,
   toHttpError

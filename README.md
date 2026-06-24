@@ -136,3 +136,35 @@ Al termine, gli output contengono i nomi di account, database e container Cosmos
    Le Functions leggono `COSMOS_CONNECTIONSTRING` dalle impostazioni dell'app, senza
    salvare la connection string nel repository. Le pull request generano ambienti di
    staging temporanei.
+
+## Risoluzione dei problemi (Cosmos DB)
+
+Se la pagina **Storico** mostra un errore di accesso a Cosmos DB oppure il salvataggio
+non va a buon fine, la causa quasi sempre è la connection string mancante o errata nelle
+**Application settings** della Static Web App.
+
+- **Errore `COSMOS_CONNECTIONSTRING non configurata` (HTTP 503):** l'app setting non è
+  presente. Impostala e riprova:
+  ```bash
+  az staticwebapp appsettings set \
+    --name black-sand-00abc5803 \
+    --resource-group rg-stradeaperte \
+    --setting-names COSMOS_CONNECTIONSTRING="<connection-string>"
+  ```
+  La connection string si recupera dall'account Cosmos DB con:
+  ```bash
+  az cosmosdb keys list \
+    --name <nome-account-cosmos> \
+    --resource-group rg-stradeaperte \
+    --type connection-strings \
+    --query "connectionStrings[0].connectionString" -o tsv
+  ```
+- **Errore `Errore interno durante l'accesso a Cosmos DB` (HTTP 500):** la connection
+  string è presente ma non valida (account/chiave errati) oppure il database/container
+  `schede` non esiste ancora. Verifica di aver completato il *provisioning* dell'infrastruttura
+  (vedi *Provisioning dell'infrastruttura*) e che la connection string punti all'account corretto.
+- Le **Application settings** sono applicate solo all'ambiente di produzione: gli ambienti
+  di *staging* generati dalle pull request non le ereditano, quindi su quegli URL Cosmos DB
+  risulterà irraggiungibile.
+- Dopo aver modificato un'app setting, esegui un nuovo deploy (push su `main`) o attendi il
+  riavvio delle Functions affinché il nuovo valore venga letto.
