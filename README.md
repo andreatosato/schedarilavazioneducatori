@@ -99,7 +99,12 @@ quindi **non viene salvata nessuna password/secret di lunga durata** nel repo.
    Opzionalmente puoi impostare le **variables** `AZURE_RESOURCE_GROUP` e `AZURE_LOCATION`
    (default: `rg-strade-aperte` e `westeurope`).
 3. Avvia il workflow **Provision Azure Infrastructure** da *Actions → Run workflow*.
-   Al termine, l'output `appUrl` del deployment contiene l'URL pubblico dell'app.
+   Il workflow crea la Static Web App, l'account Cosmos DB, il database/container
+   `schede` e la *database connection* tra SWA e Cosmos. Non devi creare Cosmos
+   manualmente né salvare una stringa di connessione in GitHub: il Bicep la legge
+   dall'account Cosmos appena creato e la passa direttamente alla database connection
+   della Static Web App. Al termine, l'output `appUrl` del deployment contiene
+   l'URL pubblico dell'app.
 
 #### Opzione B – Manuale da Azure CLI
 
@@ -112,6 +117,9 @@ az deployment group create \
 ```
 
 Al termine, l'output `appUrl` contiene l'URL pubblico dell'app.
+
+> La stringa di connessione Cosmos non va copiata nei secret GitHub: è recuperata
+> automaticamente dal Bicep durante il provisioning e associata alla Static Web App.
 
 ### 2. Configurazione del deploy automatico
 

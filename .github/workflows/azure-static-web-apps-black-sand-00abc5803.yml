@@ -35,7 +35,6 @@ jobs:
           api_location: "" # Api source code path - optional
           output_location: "." # Built app content directory - optional
           data_api_location: "swa-db-connections" # Data API Builder config for Cosmos DB
-          skip_app_build: true
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:
