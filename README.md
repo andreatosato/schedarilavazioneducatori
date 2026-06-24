@@ -89,14 +89,18 @@ crea il resource group e **solo** l'account Cosmos DB Free Tier con database/con
    Opzionalmente puoi impostare le **variables** `AZURE_RESOURCE_GROUP` e `AZURE_LOCATION`
    (default: `rg-stradeaperte` e la regione Italy North (`italynorth`)).
 3. Avvia il workflow **Provision Cosmos DB Free Tier** da *Actions → Run workflow*.
+   La modalità predefinita `validate` compila il Bicep e stampa i comandi manuali
+   senza contattare Azure, così non viene bloccata dalle policy di Conditional Access.
+   Usa `mode=deploy` solo se la service principal è consentita dalle policy del tenant.
    Se la sottoscrizione ha già un altro Cosmos DB Free Tier, imposta
    `enableCosmosFreeTier = false` in `infra/main.bicepparam` oppure elimina l'altro
    account gratuito prima del deploy.
 
-> Se vedi l'errore `AADSTS53003` con OIDC, è una policy di Conditional Access del tenant
-> che blocca l'emissione del token. Questo workflow usa un client secret
-> (`AZURE_CLIENT_SECRET`) proprio per evitare la federated credential OIDC; in alternativa
-> devi far escludere/abilitare la service principal nelle policy del tenant.
+> Se vedi l'errore `AADSTS53003`, è una policy di Conditional Access del tenant
+> che blocca l'emissione del token anche alla service principal. Lascia il workflow
+> in `mode=validate` e lancia i comandi stampati da Azure Cloud Shell o da un'altra
+> sessione consentita, oppure fai escludere/abilitare la service principal nelle
+> policy del tenant prima di usare `mode=deploy`.
 
 #### Opzione B – Manuale da Azure CLI
 

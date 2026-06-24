@@ -25,6 +25,14 @@ on:
         description: 'Azure region for the resource group'
         required: false
         default: ''
+      mode:
+        description: 'Use validate unless the service principal is allowed by tenant Conditional Access policies'
+        required: true
+        default: 'validate'
+        type: choice
+        options:
+          - validate
+          - deploy
 
 permissions:
   contents: read
@@ -40,7 +48,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Validate Bicep
+        run: az bicep build --file infra/main.bicep --outfile "$RUNNER_TEMP/main.json"
+
+      - name: Manual deployment instructions
+        if: ${{ github.event.inputs.mode != 'deploy' }}
+        run: |
+          cat <<EOF
+          Bicep validation completed.
+
+          This workflow did not contact Azure because mode=validate. To provision
+          Cosmos DB from a trusted Azure session, run:
+
+            az group create --name "$RESOURCE_GROUP" --location "$LOCATION"
+            az deployment group create \
+              --resource-group "$RESOURCE_GROUP" \
+              --template-file infra/main.bicep \
+              --parameters infra/main.bicepparam \
+              --query "properties.outputs" -o json
+
+          If you want GitHub Actions to deploy, re-run this workflow with
+          mode=deploy after the service principal has been allowed by tenant
+          Conditional Access policies.
+          EOF
+
       - name: Azure login
+        if: ${{ github.event.inputs.mode == 'deploy' }}
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -53,13 +86,22 @@ jobs:
             --username "$AZURE_CLIENT_ID" \
             --password "$AZURE_CLIENT_SECRET" \
             --tenant "$AZURE_TENANT_ID" \
-            --output none
+            --output none 2>login-error.log || {
+              status=$?
+              cat login-error.log >&2
+              if grep -q 'AADSTS53003' login-error.log; then
+                echo "::error::Azure blocked token issuance with AADSTS53003. Run this workflow in mode=validate and deploy the printed commands from Azure Cloud Shell or another trusted session, or ask the tenant administrator to allow this service principal in Conditional Access policies."
+              fi
+              exit "$status"
+            }
           az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 
       - name: Create resource group
+        if: ${{ github.event.inputs.mode == 'deploy' }}
         run: az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
 
       - name: Deploy Bicep
+        if: ${{ github.event.inputs.mode == 'deploy' }}
         run: |
           az deployment group create \
             --resource-group "$RESOURCE_GROUP" \
