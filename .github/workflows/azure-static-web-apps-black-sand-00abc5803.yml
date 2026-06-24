@@ -52,10 +52,17 @@ jobs:
           COSMOS_ACCOUNT_NAME: black-sand-00abc5803-cosmos
         run: |
           set -euo pipefail
-          az login --service-principal \
+          if ! az login --service-principal \
             --username "$AZURE_CLIENT_ID" \
             --password "$AZURE_CLIENT_SECRET" \
-            --tenant "$AZURE_TENANT_ID" >/dev/null
+            --tenant "$AZURE_TENANT_ID" >/dev/null 2>az-login-error.log; then
+            if grep -q "AADSTS53003" az-login-error.log; then
+              echo "::warning::Skipping COSMOS_CONNECTIONSTRING update because Conditional Access blocked service principal login (AADSTS53003)."
+              exit 0
+            fi
+            cat az-login-error.log >&2
+            exit 1
+          fi
           az account set --subscription "$AZURE_SUBSCRIPTION_ID"
           COSMOS_CONNECTIONSTRING=$(az cosmosdb keys list \
             --name "$COSMOS_ACCOUNT_NAME" \
