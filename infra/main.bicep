@@ -21,6 +21,12 @@ param cosmosLocation string = resourceGroup().location
 @description('Enable the Cosmos DB lifetime Free Tier (1000 RU/s throughput and 25 GB storage free). Only one free-tier account is allowed per subscription, so set this to false if the subscription already has one.')
 param enableCosmosFreeTier bool = true
 
+@description('Name of the existing Static Web App whose application settings receive the Cosmos DB connection string. Defaults to the base name.')
+param staticWebAppName string = name
+
+@description('When true, sets the COSMOS_CONNECTIONSTRING application setting on the Static Web App so the Azure Functions API can reach Cosmos DB. Set to false if the Static Web App does not exist yet.')
+param configureStaticWebAppSettings bool = true
+
 @description('Tags applied to every resource.')
 param tags object = {
   project: 'strade-aperte'
@@ -81,6 +87,25 @@ resource cosmosContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/con
         kind: 'Hash'
       }
     }
+  }
+}
+
+// Reference the already-deployed Static Web App so the deployment can publish
+// the Cosmos DB connection string as an application setting. This avoids the
+// error-prone manual `az staticwebapp appsettings set` command, where shell
+// quoting of the connection string (it contains `=` and `;`) can corrupt the
+// COSMOS_CONNECTIONSTRING key.
+resource staticWebApp 'Microsoft.Web/staticSites@2024-04-01' existing = if (configureStaticWebAppSettings) {
+  name: staticWebAppName
+}
+
+// Setting the 'appsettings' config replaces the full set of application
+// settings, so COSMOS_CONNECTIONSTRING is the single value managed here.
+resource staticWebAppSettings 'Microsoft.Web/staticSites/config@2024-04-01' = if (configureStaticWebAppSettings) {
+  parent: staticWebApp
+  name: 'appsettings'
+  properties: {
+    COSMOS_CONNECTIONSTRING: cosmosAccount.listConnectionStrings().connectionStrings[0].connectionString
   }
 }
 

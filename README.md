@@ -129,8 +129,18 @@ Al termine, gli output contengono i nomi di account, database e container Cosmos
    | Secret | Valore |
    |--------|--------|
    | `AZURE_STATIC_WEB_APPS_API_TOKEN_BLACK_SAND_00ABC5803` | Deployment token della Static Web App |
-3. Configura la connection string tra le **Application settings** della Static Web App
-   (ad esempio con `az staticwebapp appsettings set --name black-sand-00abc5803 --resource-group rg-stradeaperte --setting-names COSMOS_CONNECTIONSTRING="<connection-string>"`).
+3. La connection string di Cosmos DB viene impostata **automaticamente** dal Bicep come
+   application setting `COSMOS_CONNECTIONSTRING` della Static Web App (vedi
+   `staticWebAppSettings` in `infra/main.bicep`). È quindi sufficiente eseguire il
+   provisioning in `mode=deploy` (o i comandi manuali equivalenti): non serve lanciare
+   `az staticwebapp appsettings set` a mano.
+
+   > ℹ️ Imposta la connection string da Bicep evita gli errori di quoting della shell:
+   > la stringa contiene `=` e `;`, perciò il comando manuale
+   > `az staticwebapp appsettings set ... COSMOS_CONNECTIONSTRING="..."` può corrompere
+   > la chiave (es. `App setting key ... is invalid`). Se la Static Web App non esiste
+   > ancora al momento del deploy, imposta `configureStaticWebAppSettings = false` in
+   > `infra/main.bicepparam` e rilancia il provisioning dopo averla creata.
 4. Ad ogni push sul branch `main`, il workflow `azure-static-web-apps-black-sand-00abc5803.yml`
    pubblica automaticamente il sito e le Azure Functions in `api/`.
    Le Functions leggono `COSMOS_CONNECTIONSTRING` dalle impostazioni dell'app, senza
@@ -144,12 +154,14 @@ non va a buon fine, la causa quasi sempre è la connection string mancante o err
 **Application settings** della Static Web App.
 
 - **Errore `COSMOS_CONNECTIONSTRING non configurata` (HTTP 503):** l'app setting non è
-  presente. Impostala e riprova:
+  presente. Il modo consigliato è (ri)lanciare il provisioning Bicep in `mode=deploy`,
+  che imposta `COSMOS_CONNECTIONSTRING` sulla Static Web App a partire dall'account Cosmos.
+  In alternativa puoi impostarla manualmente (attenzione al quoting della shell):
   ```bash
   az staticwebapp appsettings set \
     --name black-sand-00abc5803 \
     --resource-group rg-stradeaperte \
-    --setting-names COSMOS_CONNECTIONSTRING="<connection-string>"
+    --setting-names "COSMOS_CONNECTIONSTRING=<connection-string>"
   ```
   La connection string si recupera dall'account Cosmos DB con:
   ```bash
