@@ -664,48 +664,7 @@
   const PLACEHOLDER_VALUES = Object.values(DEFAULT_TEXT);
   const DETAIL_MODAL_TITLE_PREFIX = 'Scheda completa del ';
   const DOM_ID_ENCODER = new TextEncoder();
-  const DATA_API_GRAPHQL_ENDPOINT = '/data-api/graphql';
-  const HISTORY_PAGE_SIZE = 100;
-  const SCHEDA_FIELDS = `
-    id
-    data
-    oraInizio
-    oraFine
-    luogo
-    zona
-    educatori
-    tipo
-    ragazzi
-    fasce
-    genere
-    nuovi
-    clima
-    apertura
-    temi
-    criticita
-    criticitaNote
-    rete
-    note
-    urgenza
-  `;
-  const LIST_SCHEDE_QUERY = `
-    query ListSchede($after: String) {
-      schede(first: ${HISTORY_PAGE_SIZE}, after: $after) {
-        items {
-          ${SCHEDA_FIELDS}
-        }
-        endCursor
-        hasNextPage
-      }
-    }
-  `;
-  const DELETE_SCHEDA_MUTATION = `
-    mutation DeleteScheda($id: ID!) {
-      deleteScheda(id: $id) {
-        id
-      }
-    }
-  `;
+  const SCHEDA_API_ENDPOINT = '/api/schede';
 
   async function loadRecords() {
     const container = document.getElementById('records-list');
@@ -717,7 +676,7 @@
       </div>`;
 
     try {
-      const records = await fetchRecordsFromCosmos();
+      const records = await fetchRecordsFromBackend();
       records.sort((a, b) => {
         const dateA = a.data.data;
         const dateB = b.data.data;
@@ -742,41 +701,36 @@
     }
   }
 
-  async function fetchRecordsFromCosmos() {
+  async function fetchRecordsFromBackend() {
     const records = [];
-    let after = null;
-    let hasNextPage = true;
+    let continuationToken = null;
 
-    while (hasNextPage) {
-      const result = await executeGraphQL(LIST_SCHEDE_QUERY, { after });
-      const page = result.data?.schede;
-      const items = page?.items;
-      if (!Array.isArray(items)) break;
+    do {
+      const url = continuationToken
+        ? `${SCHEDA_API_ENDPOINT}?continuationToken=${encodeURIComponent(continuationToken)}`
+        : SCHEDA_API_ENDPOINT;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Azure Functions API HTTP ${response.status}`);
+      }
 
-      records.push(...items.map(data => ({ key: data.id, data })));
-      hasNextPage = Boolean(page.hasNextPage && page.endCursor);
-      after = page.endCursor;
-    }
+      const result = await response.json();
+      const items = result && result.items;
+      if (Array.isArray(items)) {
+        records.push(...items.map(data => ({ key: data.id, data })));
+      }
+      continuationToken = result && result.continuationToken;
+    } while (continuationToken);
 
     return records;
   }
 
-  async function executeGraphQL(query, variables) {
-    const response = await fetch(DATA_API_GRAPHQL_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, variables })
-    });
+  async function deleteRecordFromBackend(id) {
+    const response = await fetch(`${SCHEDA_API_ENDPOINT}/${encodeURIComponent(id)}`, { method: 'DELETE' });
     if (!response.ok) {
-      throw new Error(`Data API Builder HTTP ${response.status}`);
+      throw new Error(`Azure Functions API HTTP ${response.status}`);
     }
-
-    const result = await response.json();
-    if (result.errors && result.errors.length > 0) {
-      const operationName = query.match(/\b(?:query|mutation)\s+(\w+)/)?.[1] || 'sconosciuta';
-      throw new Error(`Operazione GraphQL non riuscita (${operationName}): ` + result.errors.map(error => error.message).join('; '));
-    }
-    return result;
+    return response.json();
   }
 
   function getRecordByKey(key) {
@@ -1084,7 +1038,7 @@
     if (pendingDeleteKey) {
       const keyToDelete = pendingDeleteKey;
       try {
-        await executeGraphQL(DELETE_SCHEDA_MUTATION, { id: keyToDelete });
+        await deleteRecordFromBackend(keyToDelete);
         allRecords = allRecords.filter(record => record.key !== keyToDelete);
         closeDeleteModal();
         renderRecords();
