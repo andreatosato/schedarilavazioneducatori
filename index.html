@@ -934,7 +934,7 @@
       showToast('⚠️ Impossibile salvare su Cosmos DB. Riprova tra poco.', '#EA4335');
       return;
     }
-    await updateRecordsCount();
+    incrementRecordsCount();
     showToast(SAVE_MESSAGE);
     setTimeout(resetForm, 1800);
   }
@@ -989,7 +989,15 @@
 
   async function updateRecordsCount() {
     const count = await getCosmosRecordsCount();
-    document.getElementById('records-count').textContent = count === null ? 'N/D' : count;
+    document.getElementById('records-count').textContent = count === null ? 'Non disponibile' : count;
+  }
+
+  function incrementRecordsCount() {
+    const countEl = document.getElementById('records-count');
+    const currentCount = Number.parseInt(countEl.textContent, 10);
+    if (Number.isFinite(currentCount)) {
+      countEl.textContent = currentCount + 1;
+    }
   }
 
   function createRecordIdSuffix() {
@@ -1048,7 +1056,7 @@
         console.warn('Errori GraphQL nel conteggio schede da Cosmos DB', result.errors);
         return null;
       }
-      const items = result.data && result.data.schede && result.data.schede.items;
+      const items = result.data?.schede?.items;
       return Array.isArray(items) ? items.length : null;
     } catch (e) {
       console.warn('Errore di rete o parsing nel conteggio schede da Cosmos DB', e);
