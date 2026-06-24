@@ -87,7 +87,7 @@ crea il resource group e **solo** l'account Cosmos DB Free Tier con database/con
    | `AZURE_SUBSCRIPTION_ID` | ID della sottoscrizione Azure |
 
    Opzionalmente puoi impostare le **variables** `AZURE_RESOURCE_GROUP` e `AZURE_LOCATION`
-   (default: `rg-stradeaperte` e Italy North, `italynorth`).
+   (default: `rg-stradeaperte` e la regione Italy North (`italynorth`)).
 3. Avvia il workflow **Provision Cosmos DB Free Tier** da *Actions → Run workflow*.
    Se la sottoscrizione ha già un altro Cosmos DB Free Tier, imposta
    `enableCosmosFreeTier = false` in `infra/main.bicepparam` oppure elimina l'altro
