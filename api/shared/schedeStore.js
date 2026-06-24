@@ -29,6 +29,8 @@ const NUMBER_FIELDS = new Set(['ragazzi', 'nuovi', 'clima', 'apertura']);
 
 let cachedContainer;
 
+class ValidationError extends Error {}
+
 function getContainer() {
   if (cachedContainer) return cachedContainer;
 
@@ -46,10 +48,10 @@ function getContainer() {
 
 function normalizeScheda(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    throw new Error('Il payload deve essere un oggetto');
+    throw new ValidationError('Il payload deve essere un oggetto');
   }
   if (typeof input.id !== 'string' || input.id.trim().length === 0) {
-    throw new Error('Il campo id è obbligatorio');
+    throw new ValidationError('Il campo id è obbligatorio');
   }
 
   const scheda = {};
@@ -85,7 +87,7 @@ async function createScheda(input) {
 
 async function deleteScheda(id) {
   if (typeof id !== 'string' || id.trim().length === 0) {
-    throw new Error('Id scheda non valido');
+    throw new ValidationError('Id scheda non valido');
   }
   const { resource } = await getContainer().item(id, id).delete();
   return resource || { id };
@@ -98,13 +100,14 @@ function toHttpError(error) {
   if (error && error.code === 409) {
     return { status: 409, body: { error: 'Scheda già esistente' } };
   }
-  if (error instanceof Error && /payload|campo|Id scheda/i.test(error.message)) {
+  if (error instanceof ValidationError) {
     return { status: 400, body: { error: error.message } };
   }
   return { status: 500, body: { error: 'Errore interno durante l’accesso a Cosmos DB' } };
 }
 
 module.exports = {
+  ValidationError,
   createScheda,
   deleteScheda,
   listSchede,

@@ -1,11 +1,14 @@
-const { deleteScheda, toHttpError } = require('../shared/schedeStore');
+const store = require('../shared/schedeStore');
 
-module.exports = async function (context, req) {
+async function handleDeleteScheda(context, req, schedeStore = store) {
   try {
-    const deleted = await deleteScheda(req.params.id);
+    const deleted = await schedeStore.deleteScheda(req.params.id);
     context.res = { status: 200, body: deleted };
   } catch (error) {
     context.log.error('Errore API eliminazione scheda', error);
-    context.res = toHttpError(error);
+    context.res = schedeStore.toHttpError(error);
   }
-};
+}
+
+module.exports = handleDeleteScheda;
+module.exports.handleDeleteScheda = handleDeleteScheda;
