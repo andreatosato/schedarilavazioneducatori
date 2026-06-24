@@ -48,13 +48,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Check Azure CLI
-        run: |
-          command -v az || {
-            echo "::error::Azure CLI not found. It should be pre-installed on GitHub-hosted runners; check the runner image/configuration."
-            exit 1
-          }
-
       - name: Validate Bicep
         run: |
           set -euo pipefail
@@ -94,22 +87,18 @@ jobs:
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
           set -euo pipefail
-          set +e
-          login_output=$(az login \
+          if ! login_output=$(az login \
             --service-principal \
             --username "$AZURE_CLIENT_ID" \
             --password "$AZURE_CLIENT_SECRET" \
             --tenant "$AZURE_TENANT_ID" \
-            --output none 2>&1)
-          status=$?
-          set -e
-          if [ "$status" -ne 0 ]; then
+            --output none 2>&1); then
             printf '%s\n' "$login_output" >&2
-            if printf '%s\n' "$login_output" | grep -q 'AADSTS53003'; then
+            if grep -q 'AADSTS53003' <<< "$login_output"; then
               echo "::error title=Azure login blocked::Azure blocked token issuance with AADSTS53003."
               echo "::error::Run mode=validate and deploy from Azure Cloud Shell/trusted session, or ask the tenant administrator to allow this service principal."
             fi
-            exit "$status"
+            exit 1
           fi
           az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 
