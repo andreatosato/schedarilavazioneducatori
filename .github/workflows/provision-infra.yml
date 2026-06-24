@@ -48,10 +48,15 @@ jobs:
           AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
         run: |
           set -euo pipefail
+          set +x
           CLIENT_ID="$(python3 -c 'import json, os; print(json.loads(os.environ["AZURE_CREDENTIALS"])["clientId"])')"
           CLIENT_SECRET="$(python3 -c 'import json, os; print(json.loads(os.environ["AZURE_CREDENTIALS"])["clientSecret"])')"
           SUBSCRIPTION_ID="$(python3 -c 'import json, os; print(json.loads(os.environ["AZURE_CREDENTIALS"])["subscriptionId"])')"
           TENANT_ID="$(python3 -c 'import json, os; print(json.loads(os.environ["AZURE_CREDENTIALS"])["tenantId"])')"
+          printf '::add-mask::%s\n' "$CLIENT_ID"
+          printf '::add-mask::%s\n' "$CLIENT_SECRET"
+          printf '::add-mask::%s\n' "$SUBSCRIPTION_ID"
+          printf '::add-mask::%s\n' "$TENANT_ID"
 
           az login \
             --service-principal \
