@@ -706,7 +706,7 @@
       if (!storage) continue;
       try {
         const value = storage.getItem(key);
-        if (typeof value !== 'string' || value.trim() === '') continue;
+        if (value === null) continue;
         return JSON.parse(value);
       } catch (e) {
         // try the next available storage
@@ -716,6 +716,7 @@
   }
 
   function makeDomId(value) {
+    // Encode storage keys so generated IDs only contain DOM-safe characters.
     return btoa(value).replace(/=+$/g, '').replace(/\+/g, '-').replace(/\//g, '_');
   }
 
@@ -1015,15 +1016,20 @@
         const storage = getStorage(storageName);
         if (!storage) return;
         try {
+          const hadRecord = storage.getItem(pendingDeleteKey) !== null;
           storage.removeItem(pendingDeleteKey);
-          deleted = deleted || storage.getItem(pendingDeleteKey) === null;
+          deleted = deleted || (hadRecord && storage.getItem(pendingDeleteKey) === null);
         } catch (e) {
           // continue with other available storage
         }
       });
       closeDeleteModal();
       renderRecords();
-      showToast(deleted ? '🗑️ Scheda eliminata' : 'Errore durante l’eliminazione', deleted ? undefined : 'var(--danger)');
+      if (deleted) {
+        showToast('🗑️ Scheda eliminata');
+      } else {
+        showToast('Errore durante l’eliminazione', 'var(--danger)');
+      }
     }
   }
 
