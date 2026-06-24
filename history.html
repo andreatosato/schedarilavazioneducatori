@@ -662,26 +662,56 @@
   };
   const PLACEHOLDER_VALUES = Object.values(DEFAULT_TEXT);
   const DETAIL_MODAL_TITLE_PREFIX = 'Scheda completa del ';
+  const RECORD_PREFIX = 'scheda_';
+  const RECORD_STORAGE_NAMES = ['localStorage', 'sessionStorage'];
 
   function getAllRecords() {
     const records = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('scheda_')) {
-        try {
-          const data = JSON.parse(localStorage.getItem(key));
-          records.push({ key, data });
-        } catch (e) {
-          // skip malformed entries
+    const seenKeys = new Set();
+    RECORD_STORAGE_NAMES.forEach(storageName => {
+      const storage = getStorage(storageName);
+      if (!storage) return;
+      for (let i = 0; i < storage.length; i++) {
+        const key = storage.key(i);
+        if (key && key.startsWith(RECORD_PREFIX) && !seenKeys.has(key)) {
+          try {
+            const data = JSON.parse(storage.getItem(key));
+            records.push({ key, data });
+            seenKeys.add(key);
+          } catch (e) {
+            // skip malformed entries
+          }
         }
       }
-    }
+    });
     records.sort((a, b) => {
       if (a.data.data > b.data.data) return -1;
       if (a.data.data < b.data.data) return 1;
       return b.key.localeCompare(a.key);
     });
     return records;
+  }
+
+  function getStorage(storageName) {
+    try {
+      return window[storageName];
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function getRecordByKey(key) {
+    for (const storageName of RECORD_STORAGE_NAMES) {
+      const storage = getStorage(storageName);
+      if (!storage) continue;
+      try {
+        const value = storage.getItem(key);
+        if (value) return JSON.parse(value);
+      } catch (e) {
+        // try the next available storage
+      }
+    }
+    return null;
   }
 
   function renderStats(records) {
@@ -890,7 +920,8 @@
 
   function openDetailModal(key) {
     try {
-      const data = JSON.parse(localStorage.getItem(key));
+      const data = getRecordByKey(key);
+      if (!data) throw new Error('Record not found');
       lastDetailTrigger = document.activeElement;
       document.getElementById('detail-modal-title').textContent = DETAIL_MODAL_TITLE_PREFIX + formatDate(data.data);
       document.getElementById('detail-modal-subtitle').textContent = [data.luogo, data.zona].filter(Boolean).join(' · ') || 'Dettaglio completo';
@@ -933,7 +964,8 @@
 
   function copyRecord(key) {
     try {
-      const data = JSON.parse(localStorage.getItem(key));
+      const data = getRecordByKey(key);
+      if (!data) throw new Error('Record not found');
       const text = buildText(data);
       navigator.clipboard.writeText(text).then(() => {
         showToast('📋 Copiato!');
@@ -964,7 +996,15 @@
 
   function confirmDelete() {
     if (pendingDeleteKey) {
-      localStorage.removeItem(pendingDeleteKey);
+      RECORD_STORAGE_NAMES.forEach(storageName => {
+        const storage = getStorage(storageName);
+        if (!storage) return;
+        try {
+          storage.removeItem(pendingDeleteKey);
+        } catch (e) {
+          // continue with other available storage
+        }
+      });
       closeDeleteModal();
       renderRecords();
       showToast('🗑️ Scheda eliminata');
