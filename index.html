@@ -791,6 +791,7 @@
   const RECORD_STORAGE_NAMES = ['localStorage', 'sessionStorage'];
   const SAVE_MESSAGES = {
     cosmosDB: '✅ Scheda salvata su Cosmos DB!',
+    cosmosDBNoCache: '✅ Scheda salvata su Cosmos DB. Storico locale non disponibile.',
     localStorage: '✅ Scheda salvata!',
     sessionStorage: '✅ Scheda salvata per questa sessione!'
   };
@@ -1017,11 +1018,12 @@
     const serialized = JSON.stringify(record);
     if (await saveRecordToCosmos(record)) {
       const cachedStorage = cacheRecordLocally(key, serialized);
-      if (!cachedStorage && !localCacheWarningShown) {
+      if (cachedStorage) return 'cosmosDB';
+      if (!localCacheWarningShown) {
         console.warn(LOCAL_CACHE_WARNING);
         localCacheWarningShown = true;
       }
-      return 'cosmosDB';
+      return 'cosmosDBNoCache';
     }
 
     return cacheRecordLocally(key, serialized);
@@ -1042,7 +1044,7 @@
     return null;
   }
 
-  async function saveRecordToCosmos(formData) {
+  async function saveRecordToCosmos(record) {
     if (typeof fetch !== 'function') return false;
 
     try {
@@ -1051,7 +1053,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: CREATE_SCHEDA_MUTATION,
-          variables: { item: formData }
+          variables: { item: record }
         })
       });
       if (!response.ok) {
@@ -1065,7 +1067,7 @@
         return false;
       }
       const created = result.data && result.data.createScheda;
-      return Boolean(created && typeof created.id === 'string' && created.id.length > 0);
+      return Boolean(created && created.id === record.id);
     } catch (e) {
       console.warn('Errore salvataggio su Cosmos DB', e);
       return false;
