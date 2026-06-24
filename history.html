@@ -719,8 +719,10 @@
     try {
       const records = await fetchRecordsFromCosmos();
       records.sort((a, b) => {
-        if (a.data.data > b.data.data) return -1;
-        if (a.data.data < b.data.data) return 1;
+        const aDate = a.data.data;
+        const bDate = b.data.data;
+        if (aDate > bDate) return -1;
+        if (aDate < bDate) return 1;
         return b.key.localeCompare(a.key);
       });
       allRecords = records;
@@ -771,7 +773,7 @@
 
     const result = await response.json();
     if (result.errors && result.errors.length > 0) {
-      throw new Error(result.errors.map(error => error.message).join('; '));
+      throw new Error('Operazione GraphQL non riuscita: ' + result.errors.map(error => error.message).join('; '));
     }
     return result;
   }
@@ -1089,7 +1091,7 @@
       } catch (e) {
         console.warn('Errore eliminazione scheda da Cosmos DB', e);
         closeDeleteModal();
-        const message = e.message ? `Errore durante l’eliminazione: ${e.message}` : 'Errore durante l’eliminazione';
+        const message = e.message ? `Errore durante l’eliminazione: ${escapeHtml(e.message)}` : 'Errore durante l’eliminazione';
         showToast(message, 'var(--danger)');
       }
     }
