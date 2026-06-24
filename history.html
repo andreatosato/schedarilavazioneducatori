@@ -665,6 +665,7 @@
   const DETAIL_MODAL_TITLE_PREFIX = 'Scheda completa del ';
   const HISTORY_RECORD_PREFIX = 'scheda_';
   const RECORD_STORAGE_NAMES = ['localStorage', 'sessionStorage'];
+  const DOM_ID_ENCODER = new TextEncoder();
 
   function getAllRecords() {
     const records = [];
@@ -726,7 +727,7 @@
    * @returns {string} A hexadecimal ID-safe representation.
    */
   function makeDomId(value) {
-    return Array.from(new TextEncoder().encode(value), byte => byte.toString(16).padStart(2, '0')).join('');
+    return Array.from(DOM_ID_ENCODER.encode(value), byte => byte.toString(16).padStart(2, '0')).join('');
   }
 
   function renderStats(records) {
@@ -859,7 +860,7 @@
 
     container.innerHTML = filtered.map(({ key, data: d, storageName }) => {
       const eduStr = joinListOrDefault(d.educatori, DEFAULT_TEXT.missing);
-      const safeCardId = makeDomId(`${storageName}-${key}`);
+      const hexCardId = makeDomId(`${storageName}-${key}`);
       const keyParam = encodeURIComponent(key);
       const cardLabels = [
         "Fascia d'età prevalente",
@@ -874,7 +875,7 @@
       ];
 
       return `
-        <div class="record-card ${urgencyClass(d.urgenza)}" id="card-${safeCardId}">
+        <div class="record-card ${urgencyClass(d.urgenza)}" id="card-${hexCardId}">
           <div class="record-header">
             <div class="record-date">📅 ${escapeHtml(formatDate(d.data))}</div>
             <div class="record-badges">
@@ -894,7 +895,7 @@
             <div class="record-stat">😊 Clima: <strong>${escapeHtml(formatScoreOrDefault(d.clima))}</strong></div>
             <div class="record-stat">🤝 Apertura: <strong>${escapeHtml(formatScoreOrDefault(d.apertura))}</strong></div>
           </div>
-          <div class="detail-panel" id="detail-${safeCardId}">
+          <div class="detail-panel" id="detail-${hexCardId}">
             ${renderDetailSections(d, cardLabels)}
           </div>
           <div class="record-actions">
