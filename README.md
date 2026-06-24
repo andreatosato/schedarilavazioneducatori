@@ -129,23 +129,29 @@ Al termine, gli output contengono i nomi di account, database e container Cosmos
    | Secret | Valore |
    |--------|--------|
    | `AZURE_STATIC_WEB_APPS_API_TOKEN_BLACK_SAND_00ABC5803` | Deployment token della Static Web App |
-3. La connection string di Cosmos DB viene impostata **automaticamente** dal Bicep come
-   application setting `COSMOS_CONNECTIONSTRING` della Static Web App (vedi
-   `staticWebAppSettings` in `infra/main.bicep`). È quindi sufficiente eseguire il
-   provisioning in `mode=deploy` (o i comandi manuali equivalenti): non serve lanciare
-   `az staticwebapp appsettings set` a mano.
+   | `AZURE_CLIENT_ID` | Client ID del service principal usato per impostare la connection string |
+   | `AZURE_CLIENT_SECRET` | Client secret del service principal |
+   | `AZURE_TENANT_ID` | Tenant ID del service principal |
+   | `AZURE_SUBSCRIPTION_ID` | Subscription ID che contiene la Static Web App e Cosmos DB |
+3. Ad ogni push sul branch `main`, il workflow `azure-static-web-apps-black-sand-00abc5803.yml`
+   imposta **automaticamente** l'application setting `COSMOS_CONNECTIONSTRING` sulla Static Web App.
+   Lo step *Configure Cosmos DB connection string* esegue il login con il service principal,
+   legge la connection string dall'account Cosmos (`black-sand-00abc5803-cosmos` nel resource
+   group `rg-stradeaperte`) e la pubblica con `az staticwebapp appsettings set`. In questo modo
+   la chiave è sempre presente sulla Static Web App senza salvarla nel repository.
 
-   > ℹ️ Impostare la connection string da Bicep evita gli errori di quoting della shell:
-   > la stringa contiene `=` e `;`, perciò il comando manuale
-   > `az staticwebapp appsettings set ... COSMOS_CONNECTIONSTRING="..."` può corrompere
-   > la chiave (es. `App setting key ... is invalid`). Se la Static Web App non esiste
-   > ancora al momento del deploy, imposta `configureStaticWebAppSettings = false` in
-   > `infra/main.bicepparam` e rilancia il provisioning dopo averla creata.
-4. Ad ogni push sul branch `main`, il workflow `azure-static-web-apps-black-sand-00abc5803.yml`
-   pubblica automaticamente il sito e le Azure Functions in `api/`.
-   Le Functions leggono `COSMOS_CONNECTIONSTRING` dalle impostazioni dell'app, senza
-   salvare la connection string nel repository. Le pull request generano ambienti di
-   staging temporanei.
+   > ℹ️ Il service principal usato dai secret `AZURE_*` deve avere i permessi per leggere le
+   > chiavi dell'account Cosmos e per scrivere le application settings della Static Web App.
+   > La connection string contiene `=` e `;`: lo step la passa tra virgolette in un'unica
+   > variabile, evitando gli errori di quoting (es. `App setting key ... is invalid`) che si
+   > verificano digitando il comando a mano.
+4. In alternativa, la connection string può essere impostata dal Bicep durante il provisioning
+   (vedi `staticWebAppSettings` in `infra/main.bicep`, `mode=deploy`). Se la Static Web App non
+   esiste ancora al momento del provisioning, imposta `configureStaticWebAppSettings = false` in
+   `infra/main.bicepparam` e rilancia dopo averla creata.
+5. Le Azure Functions in `api/` leggono `COSMOS_CONNECTIONSTRING` dalle impostazioni dell'app,
+   senza salvare la connection string nel repository. Le pull request generano ambienti di
+   staging temporanei che **non** ereditano le application settings di produzione.
 
 ## Risoluzione dei problemi (Cosmos DB)
 
@@ -154,9 +160,11 @@ non va a buon fine, la causa quasi sempre è la connection string mancante o err
 **Application settings** della Static Web App.
 
 - **Errore `COSMOS_CONNECTIONSTRING non configurata` (HTTP 503):** l'app setting non è
-  presente. Il modo consigliato è (ri)lanciare il provisioning Bicep in `mode=deploy`,
-  che imposta `COSMOS_CONNECTIONSTRING` sulla Static Web App a partire dall'account Cosmos.
-  In alternativa puoi impostarla manualmente (attenzione al quoting della shell):
+  presente. Di norma è sufficiente eseguire un nuovo push su `main`: lo step
+  *Configure Cosmos DB connection string* del workflow imposta `COSMOS_CONNECTIONSTRING`
+  sulla Static Web App a partire dall'account Cosmos. In alternativa puoi (ri)lanciare il
+  provisioning Bicep in `mode=deploy` oppure impostarla manualmente (attenzione al quoting
+  della shell):
   ```bash
   az staticwebapp appsettings set \
     --name black-sand-00abc5803 \
