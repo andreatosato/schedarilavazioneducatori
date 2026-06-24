@@ -2,7 +2,7 @@
 
 App web statica per la rilevazione delle uscite educative di strada del progetto **Strade Aperte**.
 
-> **App online:** https://black-sand-00abc5803.7.azurestaticapps.net/
+> **App online:** https://black-sand-00abc5803.7.azurestaticapps.net
 >
 > L'URL definitivo viene generato da Azure al primo deploy (output `appUrl` del Bicep) e
 > include un suffisso casuale: aggiornalo qui dopo aver eseguito il deploy se differisce.
