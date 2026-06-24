@@ -668,15 +668,17 @@
 
   function getAllRecords() {
     const records = [];
+    const seenKeys = new Set();
     RECORD_STORAGE_NAMES.forEach(storageName => {
       const storage = getStorage(storageName);
       if (!storage) return;
       for (let i = 0; i < storage.length; i++) {
         const key = storage.key(i);
-        if (key && key.startsWith(HISTORY_RECORD_PREFIX)) {
+        if (key && key.startsWith(HISTORY_RECORD_PREFIX) && !seenKeys.has(key)) {
           try {
             const data = JSON.parse(storage.getItem(key));
             records.push({ key, data, storageName });
+            seenKeys.add(key);
           } catch (e) {
             // skip malformed entries
           }
@@ -716,8 +718,8 @@
   }
 
   function makeDomId(value) {
-    // Generate URL-safe base64 so storage keys can be used as DOM IDs.
-    return btoa(value).replace(/=+$/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    // Hex-encode storage keys so generated DOM IDs are unique and safe.
+    return Array.from(new TextEncoder().encode(value), byte => byte.toString(16).padStart(2, '0')).join('');
   }
 
   function renderStats(records) {
@@ -850,7 +852,7 @@
 
     container.innerHTML = filtered.map(({ key, data: d, storageName }) => {
       const eduStr = joinListOrDefault(d.educatori, DEFAULT_TEXT.missing);
-      const safeCardId = escapeHtml(makeDomId(storageName + '-' + key));
+      const safeCardId = makeDomId(storageName + '-' + key);
       const keyParam = encodeURIComponent(key);
       const cardLabels = [
         "Fascia d'età prevalente",
