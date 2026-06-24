@@ -16,7 +16,7 @@
 targetScope = 'resourceGroup'
 
 @description('Base name used to derive the resource names.')
-param name string = 'schedari-strade-aperte'
+param name string = 'black-sand-00abc5803'
 
 @description('Location for the Static Web App. Only a subset of regions support Static Web Apps.')
 @allowed([

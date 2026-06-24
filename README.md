@@ -2,7 +2,7 @@
 
 App web statica per la rilevazione delle uscite educative di strada del progetto **Strade Aperte**.
 
-> **App online:** https://schedari-strade-aperte.azurestaticapps.net
+> **App online:** https://black-sand-00abc5803.7.azurestaticapps.net
 >
 > L'URL definitivo viene generato da Azure al primo deploy (output `appUrl` del Bicep) e
 > include un suffisso casuale: aggiornalo qui dopo aver eseguito il deploy se differisce.
@@ -26,7 +26,7 @@ App web statica per la rilevazione delle uscite educative di strada del progetto
 | `swa-db-connections/schede.gql` | Schema GraphQL dell'entità Scheda |
 | `infra/main.bicep` | Template Bicep che provisiona **tutta** l'infrastruttura (Static Web App + Cosmos DB) |
 | `infra/main.bicepparam` | Parametri di default per il deploy Bicep |
-| `.github/workflows/azure-static-web-apps.yml` | Workflow di deploy automatico su Azure Static Web Apps |
+| `.github/workflows/azure-static-web-apps-black-sand-00abc5803.yml` | Workflow di deploy automatico su Azure Static Web Apps |
 
 ## Architettura su Azure
 
@@ -99,7 +99,12 @@ quindi **non viene salvata nessuna password/secret di lunga durata** nel repo.
    Opzionalmente puoi impostare le **variables** `AZURE_RESOURCE_GROUP` e `AZURE_LOCATION`
    (default: `rg-strade-aperte` e `westeurope`).
 3. Avvia il workflow **Provision Azure Infrastructure** da *Actions → Run workflow*.
-   Al termine, l'output `appUrl` del deployment contiene l'URL pubblico dell'app.
+   Il workflow crea la Static Web App, l'account Cosmos DB, il database/container
+   `schede` e la *database connection* tra SWA e Cosmos. Non devi creare Cosmos
+   manualmente né salvare una stringa di connessione in GitHub: il Bicep la legge
+   dall'account Cosmos appena creato e la passa direttamente alla database connection
+   della Static Web App. Al termine, l'output `appUrl` del deployment contiene
+   l'URL pubblico dell'app.
 
 #### Opzione B – Manuale da Azure CLI
 
@@ -113,17 +118,22 @@ az deployment group create \
 
 Al termine, l'output `appUrl` contiene l'URL pubblico dell'app.
 
+> La stringa di connessione Cosmos non va copiata nei secret GitHub: è recuperata
+> automaticamente dal Bicep durante il provisioning e associata alla Static Web App.
+
 ### 2. Configurazione del deploy automatico
 
-1. Recupera il deployment token della Static Web App (`schedari-strade-aperte` è il nome
+1. Recupera il deployment token della Static Web App (`black-sand-00abc5803` è il nome
    di default definito in `infra/main.bicepparam`; usa lo stesso valore se lo hai modificato):
    ```bash
    az staticwebapp secrets list \
-     --name schedari-strade-aperte \
+     --name black-sand-00abc5803 \
      --resource-group <rg-name> \
      --query "properties.apiKey" -o tsv
    ```
-2. In GitHub, aggiungi il token come secret del repository con nome `AZURE_STATIC_WEB_APPS_API_TOKEN`
+2. In GitHub, aggiungi il token come secret del repository con nome
+   `AZURE_STATIC_WEB_APPS_API_TOKEN_BLACK_SAND_00ABC5803`
    (**Settings → Secrets and variables → Actions**).
-3. Ad ogni push sul branch `main`, il workflow `azure-static-web-apps.yml` pubblica automaticamente il sito.
+3. Ad ogni push sul branch `main`, il workflow `azure-static-web-apps-black-sand-00abc5803.yml`
+   pubblica automaticamente il sito e la configurazione Data API Builder in `swa-db-connections`.
    Le pull request generano ambienti di staging temporanei.
