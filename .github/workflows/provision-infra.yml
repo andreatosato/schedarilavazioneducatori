@@ -47,7 +47,6 @@ jobs:
         env:
           AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
         run: |
-          set +x
           set -euo pipefail
           credentials_file="$(mktemp)"
           trap 'rm -f "$credentials_file"' EXIT
