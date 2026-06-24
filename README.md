@@ -16,14 +16,36 @@ App web statica per la rilevazione delle uscite educative di strada del progetto
 |------|-------------|
 | `index.html` | Form di compilazione scheda |
 | `history.html` | Storico e gestione schede salvate |
-| `.nojekyll` | Disabilita Jekyll su GitHub Pages |
-| `.github/workflows/deploy.yml` | Workflow di deploy automatico su GitHub Pages |
+| `staticwebapp.config.json` | Configurazione di Azure Static Web Apps |
+| `infra/main.bicep` | Template Bicep per provisioning della Static Web App |
+| `infra/main.bicepparam` | Parametri di default per il deploy Bicep |
+| `.github/workflows/azure-static-web-apps.yml` | Workflow di deploy automatico su Azure Static Web Apps |
 
-## Deploy su GitHub Pages
+## Deploy su Azure Static Web Apps
 
-Il sito viene pubblicato automaticamente su GitHub Pages ad ogni push sul branch `main` tramite GitHub Actions.
+Il sito viene pubblicato su [Azure Static Web Apps](https://learn.microsoft.com/azure/static-web-apps/).
 
-Per abilitare GitHub Pages:
-1. Vai in **Settings → Pages**
-2. Seleziona **Source: GitHub Actions**
-3. Esegui un push sul branch `main`
+### 1. Provisioning dell'infrastruttura (Bicep)
+
+```bash
+az group create --name <rg-name> --location westeurope
+az deployment group create \
+  --resource-group <rg-name> \
+  --template-file infra/main.bicep \
+  --parameters infra/main.bicepparam
+```
+
+### 2. Configurazione del deploy automatico
+
+1. Recupera il deployment token della Static Web App (`schedari-strade-aperte` è il nome
+   di default definito in `infra/main.bicepparam`; usa lo stesso valore se lo hai modificato):
+   ```bash
+   az staticwebapp secrets list \
+     --name schedari-strade-aperte \
+     --resource-group <rg-name> \
+     --query "properties.apiKey" -o tsv
+   ```
+2. In GitHub, aggiungi il token come secret del repository con nome `AZURE_STATIC_WEB_APPS_API_TOKEN`
+   (**Settings → Secrets and variables → Actions**).
+3. Ad ogni push sul branch `main`, il workflow `azure-static-web-apps.yml` pubblica automaticamente il sito.
+   Le pull request generano ambienti di staging temporanei.
