@@ -21,6 +21,21 @@ test('normalizeScheda keeps only expected fields and coerces values', () => {
   });
 });
 
+test('normalizeScheda handles nullable and invalid array fields', () => {
+  const scheda = normalizeScheda({
+    id: 'scheda_arrays',
+    educatori: null,
+    fasce: [],
+    temi: 'non-array'
+  });
+
+  assert.deepEqual(scheda, {
+    id: 'scheda_arrays',
+    fasce: [],
+    temi: []
+  });
+});
+
 test('normalizeScheda requires a non-empty id', () => {
   assert.throws(() => normalizeScheda({ id: '' }), /id è obbligatorio/);
 });

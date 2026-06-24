@@ -27,7 +27,9 @@ const ALLOWED_FIELDS = [
 const ARRAY_FIELDS = new Set(['educatori', 'fasce', 'temi', 'criticita', 'rete']);
 const NUMBER_FIELDS = new Set(['ragazzi', 'nuovi', 'clima', 'apertura']);
 const LIST_PAGE_SIZE = 100;
+const LIST_SCHEDE_QUERY = `SELECT ${ALLOWED_FIELDS.map(field => `c.${field}`).join(', ')} FROM c`;
 
+// Cached per warm Node.js Functions worker.
 let cachedContainer;
 
 class ValidationError extends Error {}
@@ -78,7 +80,7 @@ async function listSchede(continuationToken) {
   if (continuationToken) options.continuationToken = continuationToken;
 
   const page = await getContainer()
-    .items.query('SELECT * FROM c', options)
+    .items.query(LIST_SCHEDE_QUERY, options)
     .fetchNext();
   return {
     items: page.resources || [],

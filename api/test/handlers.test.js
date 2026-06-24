@@ -4,7 +4,12 @@ const { handleDeleteScheda } = require('../scheda');
 const { handleSchede } = require('../schede');
 
 function createContext() {
-  return { log: { error() {} }, res: null };
+  const errors = [];
+  return {
+    errors,
+    log: { error: (...args) => errors.push(args) },
+    res: null
+  };
 }
 
 test('handleSchede returns listed records on GET', async () => {
@@ -41,6 +46,8 @@ test('handleSchede maps store errors to HTTP responses', async () => {
   });
 
   assert.deepEqual(context.res, { status: 500, body: { error: 'mapped' } });
+  assert.equal(context.errors.length, 1);
+  assert.match(context.errors[0][0], /Errore API schede/);
 });
 
 test('handleDeleteScheda deletes a record by id', async () => {
