@@ -663,7 +663,7 @@
   };
   const PLACEHOLDER_VALUES = Object.values(DEFAULT_TEXT);
   const DETAIL_MODAL_TITLE_PREFIX = 'Scheda completa del ';
-  const RECORD_PREFIX = 'scheda_';
+  const HISTORY_RECORD_PREFIX = 'scheda_';
   const RECORD_STORAGE_NAMES = ['localStorage', 'sessionStorage'];
 
   function getAllRecords() {
@@ -673,7 +673,7 @@
       if (!storage) return;
       for (let i = 0; i < storage.length; i++) {
         const key = storage.key(i);
-        if (key && key.startsWith(RECORD_PREFIX)) {
+        if (key && key.startsWith(HISTORY_RECORD_PREFIX)) {
           try {
             const data = JSON.parse(storage.getItem(key));
             records.push({ key, data, storageName });
@@ -716,7 +716,7 @@
   }
 
   function makeDomId(value) {
-    // Encode storage keys so generated IDs only contain DOM-safe characters.
+    // Generate URL-safe base64 so storage keys can be used as DOM IDs.
     return btoa(value).replace(/=+$/g, '').replace(/\+/g, '-').replace(/\//g, '_');
   }
 
@@ -1018,7 +1018,7 @@
         try {
           const hadRecord = storage.getItem(pendingDeleteKey) !== null;
           storage.removeItem(pendingDeleteKey);
-          deleted = deleted || (hadRecord && storage.getItem(pendingDeleteKey) === null);
+          deleted = deleted || hadRecord;
         } catch (e) {
           // continue with other available storage
         }
