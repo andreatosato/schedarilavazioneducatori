@@ -49,14 +49,22 @@ jobs:
         run: |
           set -euo pipefail
           set +x
-          CLIENT_ID="$(python3 -c 'import json, os; print(json.loads(os.environ["AZURE_CREDENTIALS"])["clientId"])')"
-          CLIENT_SECRET="$(python3 -c 'import json, os; print(json.loads(os.environ["AZURE_CREDENTIALS"])["clientSecret"])')"
-          SUBSCRIPTION_ID="$(python3 -c 'import json, os; print(json.loads(os.environ["AZURE_CREDENTIALS"])["subscriptionId"])')"
-          TENANT_ID="$(python3 -c 'import json, os; print(json.loads(os.environ["AZURE_CREDENTIALS"])["tenantId"])')"
-          printf '::add-mask::%s\n' "$CLIENT_ID"
+          mapfile -t AZURE_AUTH < <(python3 <<'PY'
+          import json
+          import os
+
+          credentials = json.loads(os.environ["AZURE_CREDENTIALS"])
+          print(credentials["clientId"])
+          print(credentials["clientSecret"])
+          print(credentials["subscriptionId"])
+          print(credentials["tenantId"])
+          PY
+          )
+          CLIENT_ID="${AZURE_AUTH[0]}"
+          CLIENT_SECRET="${AZURE_AUTH[1]}"
+          SUBSCRIPTION_ID="${AZURE_AUTH[2]}"
+          TENANT_ID="${AZURE_AUTH[3]}"
           printf '::add-mask::%s\n' "$CLIENT_SECRET"
-          printf '::add-mask::%s\n' "$SUBSCRIPTION_ID"
-          printf '::add-mask::%s\n' "$TENANT_ID"
 
           az login \
             --service-principal \
