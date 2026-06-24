@@ -27,7 +27,7 @@ const ALLOWED_FIELDS = [
 const ARRAY_FIELDS = new Set(['educatori', 'fasce', 'temi', 'criticita', 'rete']);
 const NUMBER_FIELDS = new Set(['ragazzi', 'nuovi', 'clima', 'apertura']);
 const LIST_PAGE_SIZE = 100;
-const LIST_SCHEDE_QUERY = `SELECT ${ALLOWED_FIELDS.map(field => `c.${field}`).join(', ')} FROM c`;
+const LIST_SCHEDE_QUERY = `SELECT ${ALLOWED_FIELDS.map(field => `c.${field}`).join(', ')} FROM c ORDER BY c.id`;
 
 // Cached per warm Node.js Functions worker.
 let cachedContainer;
@@ -94,11 +94,16 @@ async function createScheda(input) {
   return resource;
 }
 
+function getPartitionKeyForId(id) {
+  // infra/main.bicep provisions the schede container with /id as partition key.
+  return id;
+}
+
 async function deleteScheda(id) {
   if (typeof id !== 'string' || id.trim().length === 0) {
     throw new ValidationError('Id scheda non valido');
   }
-  const { resource } = await getContainer().item(id, id).delete();
+  const { resource } = await getContainer().item(id, getPartitionKeyForId(id)).delete();
   return resource || { id };
 }
 
