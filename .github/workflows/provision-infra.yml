@@ -47,8 +47,8 @@ jobs:
         env:
           AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
         run: |
-          set -euo pipefail
           set +x
+          set -euo pipefail
           credentials_file="$(mktemp)"
           trap 'rm -f "$credentials_file"' EXIT
           export CREDENTIALS_FILE="$credentials_file"
@@ -62,7 +62,7 @@ jobs:
           try:
               credentials = json.loads(raw_credentials)
           except json.JSONDecodeError as error:
-              raise SystemExit(f"AZURE_CREDENTIALS is not valid JSON: {error.msg}") from error
+              raise SystemExit(f"AZURE_CREDENTIALS is not valid JSON: {error}") from error
 
           variables = {
               "AZURE_CLIENT_ID": "clientId",
