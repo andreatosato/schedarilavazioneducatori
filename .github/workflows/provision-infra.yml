@@ -11,8 +11,8 @@ name: Provision Cosmos DB Free Tier
 #   AZURE_SUBSCRIPTION_ID  - Target Azure subscription ID
 #
 # Optional GitHub Actions variables:
-#   AZURE_RESOURCE_GROUP   - Resource group name (default: rg-strade-aperte)
-#   AZURE_LOCATION         - Resource group location (default: westeurope)
+#   AZURE_RESOURCE_GROUP   - Resource group name (default: rg-stradeaperte)
+#   AZURE_LOCATION         - Resource group location (default: italynorth)
 
 on:
   workflow_dispatch:
@@ -34,8 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     name: Provision Cosmos DB
     env:
-      RESOURCE_GROUP: ${{ github.event.inputs.resource_group || vars.AZURE_RESOURCE_GROUP || 'rg-strade-aperte' }}
-      LOCATION: ${{ github.event.inputs.location || vars.AZURE_LOCATION || 'westeurope' }}
+      RESOURCE_GROUP: ${{ github.event.inputs.resource_group || vars.AZURE_RESOURCE_GROUP || 'rg-stradeaperte' }}
+      LOCATION: ${{ github.event.inputs.location || vars.AZURE_LOCATION || 'italynorth' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5

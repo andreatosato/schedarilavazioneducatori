@@ -4,9 +4,9 @@
 //   * Shared-throughput SQL database and the schede container.
 //
 // Everything is created automatically by a single deployment, e.g.:
-//   az group create --name <rg-name> --location westeurope
+//   az group create --name rg-stradeaperte --location italynorth
 //   az deployment group create \
-//     --resource-group <rg-name> \
+//     --resource-group rg-stradeaperte \
 //     --template-file infra/main.bicep \
 //     --parameters infra/main.bicepparam
 

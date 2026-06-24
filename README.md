@@ -87,7 +87,7 @@ crea il resource group e **solo** l'account Cosmos DB Free Tier con database/con
    | `AZURE_SUBSCRIPTION_ID` | ID della sottoscrizione Azure |
 
    Opzionalmente puoi impostare le **variables** `AZURE_RESOURCE_GROUP` e `AZURE_LOCATION`
-   (default: `rg-strade-aperte` e `westeurope`).
+   (default: `rg-stradeaperte` e Italy North, `italynorth`).
 3. Avvia il workflow **Provision Cosmos DB Free Tier** da *Actions → Run workflow*.
    Se la sottoscrizione ha già un altro Cosmos DB Free Tier, imposta
    `enableCosmosFreeTier = false` in `infra/main.bicepparam` oppure elimina l'altro
@@ -101,9 +101,9 @@ crea il resource group e **solo** l'account Cosmos DB Free Tier con database/con
 #### Opzione B – Manuale da Azure CLI
 
 ```bash
-az group create --name <rg-name> --location westeurope
+az group create --name rg-stradeaperte --location italynorth
 az deployment group create \
-  --resource-group <rg-name> \
+  --resource-group rg-stradeaperte \
   --template-file infra/main.bicep \
   --parameters infra/main.bicepparam
 ```
@@ -117,7 +117,7 @@ Al termine, gli output contengono i nomi di account, database e container Cosmos
    ```bash
    az staticwebapp secrets list \
      --name black-sand-00abc5803 \
-     --resource-group <rg-name> \
+     --resource-group rg-stradeaperte \
      --query "properties.apiKey" -o tsv
    ```
 2. In GitHub, aggiungi il token come secret del repository con nome
