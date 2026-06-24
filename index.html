@@ -787,6 +787,7 @@
 <script>
   const counts = { ragazzi: 0, nuovi: 0 };
   const scales = { clima: 0, apertura: 0 };
+  let recordsCount = 0;
   const RECORD_PREFIX = 'scheda_';
   const SAVE_MESSAGE = '✅ Scheda salvata su Cosmos DB!';
   const DATA_API_GRAPHQL_ENDPOINT = '/data-api/graphql';
@@ -989,15 +990,20 @@
 
   async function updateRecordsCount() {
     const count = await getCosmosRecordsCount();
-    document.getElementById('records-count').textContent = count === null ? 'Non disponibile' : count;
+    recordsCount = count === null ? 0 : count;
+    renderRecordsCount(count !== null);
   }
 
   function incrementRecordsCount() {
+    recordsCount += 1;
+    renderRecordsCount(true);
+  }
+
+  function renderRecordsCount(isSynced) {
     const countEl = document.getElementById('records-count');
-    const currentCount = Number.parseInt(countEl.textContent, 10);
-    if (Number.isFinite(currentCount)) {
-      countEl.textContent = currentCount + 1;
-    }
+    countEl.textContent = recordsCount;
+    countEl.title = isSynced ? '' : 'Conteggio Cosmos DB non disponibile';
+    countEl.setAttribute('aria-label', isSynced ? `${recordsCount} schede` : `${recordsCount} schede, conteggio Cosmos DB non disponibile`);
   }
 
   function createRecordIdSuffix() {
