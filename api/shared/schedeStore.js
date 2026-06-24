@@ -26,6 +26,7 @@ const ALLOWED_FIELDS = [
 ];
 const ARRAY_FIELDS = new Set(['educatori', 'fasce', 'temi', 'criticita', 'rete']);
 const NUMBER_FIELDS = new Set(['ragazzi', 'nuovi', 'clima', 'apertura']);
+const LIST_PAGE_SIZE = 100;
 
 let cachedContainer;
 
@@ -72,11 +73,17 @@ function normalizeScheda(input) {
   return scheda;
 }
 
-async function listSchede() {
-  const { resources } = await getContainer()
-    .items.query('SELECT * FROM c')
-    .fetchAll();
-  return resources;
+async function listSchede(continuationToken) {
+  const options = { maxItemCount: LIST_PAGE_SIZE };
+  if (continuationToken) options.continuationToken = continuationToken;
+
+  const page = await getContainer()
+    .items.query('SELECT * FROM c', options)
+    .fetchNext();
+  return {
+    items: page.resources || [],
+    continuationToken: page.continuationToken || null
+  };
 }
 
 async function createScheda(input) {

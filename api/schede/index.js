@@ -3,8 +3,8 @@ const store = require('../shared/schedeStore');
 async function handleSchede(context, req, schedeStore = store) {
   try {
     if (req.method === 'GET') {
-      const items = await schedeStore.listSchede();
-      context.res = { status: 200, body: { items } };
+      const page = await schedeStore.listSchede(req.query && req.query.continuationToken);
+      context.res = { status: 200, body: page };
       return;
     }
 

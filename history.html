@@ -702,16 +702,27 @@
   }
 
   async function fetchRecordsFromBackend() {
-    const response = await fetch(SCHEDA_API_ENDPOINT);
-    if (!response.ok) {
-      throw new Error(`Azure Functions API HTTP ${response.status}`);
-    }
+    const records = [];
+    let continuationToken = null;
 
-    const result = await response.json();
-    const items = result && result.items;
-    if (!Array.isArray(items)) return [];
+    do {
+      const url = continuationToken
+        ? `${SCHEDA_API_ENDPOINT}?continuationToken=${encodeURIComponent(continuationToken)}`
+        : SCHEDA_API_ENDPOINT;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Azure Functions API HTTP ${response.status}`);
+      }
 
-    return items.map(data => ({ key: data.id, data }));
+      const result = await response.json();
+      const items = result && result.items;
+      if (Array.isArray(items)) {
+        records.push(...items.map(data => ({ key: data.id, data })));
+      }
+      continuationToken = result && result.continuationToken;
+    } while (continuationToken);
+
+    return records;
   }
 
   async function deleteRecordFromBackend(id) {

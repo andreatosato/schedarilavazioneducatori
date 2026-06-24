@@ -9,14 +9,14 @@ function createContext() {
 
 test('handleSchede returns listed records on GET', async () => {
   const context = createContext();
-  await handleSchede(context, { method: 'GET' }, {
-    listSchede: async () => [{ id: 'scheda_1' }],
+  await handleSchede(context, { method: 'GET', query: { continuationToken: 'next' } }, {
+    listSchede: async token => ({ items: [{ id: token }], continuationToken: null }),
     toHttpError: () => ({ status: 500 })
   });
 
   assert.deepEqual(context.res, {
     status: 200,
-    body: { items: [{ id: 'scheda_1' }] }
+    body: { items: [{ id: 'next' }], continuationToken: null }
   });
 });
 
