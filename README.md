@@ -124,9 +124,15 @@ Al termine, gli output contengono i nomi di account, database e container Cosmos
      --resource-group rg-stradeaperte \
      --query "properties.apiKey" -o tsv
    ```
-2. In GitHub, aggiungi il token come secret del repository con nome
-   `AZURE_STATIC_WEB_APPS_API_TOKEN_BLACK_SAND_00ABC5803`
+2. In GitHub, aggiungi questi secret del repository
    (**Settings → Secrets and variables → Actions**).
+
+   | Secret | Valore |
+   |--------|--------|
+   | `AZURE_STATIC_WEB_APPS_API_TOKEN_BLACK_SAND_00ABC5803` | Deployment token della Static Web App |
+   | `COSMOS_CONNECTIONSTRING` | Connection string del database Cosmos DB usata da Data API Builder |
 3. Ad ogni push sul branch `main`, il workflow `azure-static-web-apps-black-sand-00abc5803.yml`
    pubblica automaticamente il sito e la configurazione Data API Builder in `swa-db-connections`.
-   Le pull request generano ambienti di staging temporanei.
+   La configurazione legge `COSMOS_CONNECTIONSTRING` come variabile d'ambiente, senza
+   salvare la connection string nel repository. Le pull request generano ambienti di
+   staging temporanei.
