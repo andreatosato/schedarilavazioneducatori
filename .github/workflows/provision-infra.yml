@@ -49,7 +49,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Check Azure CLI
-        run: command -v az
+        run: command -v az || { echo "::error::Azure CLI not found"; exit 1; }
 
       - name: Validate Bicep
         run: |
@@ -93,12 +93,12 @@ jobs:
             --username "$AZURE_CLIENT_ID" \
             --password "$AZURE_CLIENT_SECRET" \
             --tenant "$AZURE_TENANT_ID" \
-            --output none >"$login_error" 2>&1 || {
+            --output none 2>&1 | tee "$login_error" || {
               status=$?
-              cat "$login_error" >&2
               if grep -q 'AADSTS53003' "$login_error"; then
-                echo "::error::Azure blocked token issuance with AADSTS53003."
-                echo "::error::Run mode=validate and deploy from Azure Cloud Shell/trusted session, or ask the tenant administrator to allow this service principal in Conditional Access policies."
+                message='Azure blocked token issuance with AADSTS53003.'
+                message="$message%0ARun mode=validate and deploy from Azure Cloud Shell/trusted session, or ask the tenant administrator to allow this service principal in Conditional Access policies."
+                echo "::error::$message"
               fi
               exit "$status"
             }
