@@ -787,6 +787,12 @@
 <script>
   const counts = { ragazzi: 0, nuovi: 0 };
   const scales = { clima: 0, apertura: 0 };
+  const RECORD_PREFIX = 'scheda_';
+  const RECORD_STORAGE_NAMES = ['localStorage', 'sessionStorage'];
+  const SAVE_MESSAGES = {
+    localStorage: '✅ Scheda salvata!',
+    sessionStorage: '✅ Scheda salvata per questa sessione!'
+  };
 
   function changeCount(field, delta) {
     counts[field] = Math.max(0, counts[field] + delta);
@@ -908,10 +914,14 @@
       showToast('⚠️ Seleziona almeno un educatore!', '#EA4335');
       return;
     }
-    const key = 'scheda_' + (formData.data || 'nodata') + '_' + Date.now();
-    localStorage.setItem(key, JSON.stringify(formData));
+    const key = RECORD_PREFIX + (formData.data || 'nodata') + '_' + Date.now();
+    const savedStorage = saveRecord(key, formData);
+    if (!savedStorage) {
+      showToast('⚠️ Impossibile salvare: controlla le impostazioni del browser.', '#EA4335');
+      return;
+    }
     updateRecordsCount();
-    showToast('✅ Scheda salvata!');
+    showToast(SAVE_MESSAGES[savedStorage]);
     setTimeout(resetForm, 1800);
   }
 
@@ -964,8 +974,40 @@
   }
 
   function updateRecordsCount() {
-    const keys = Object.keys(localStorage).filter(k => k.startsWith('scheda_'));
-    document.getElementById('records-count').textContent = keys.length;
+    const keys = new Set();
+    RECORD_STORAGE_NAMES.forEach(storageName => {
+      const storage = getStorage(storageName);
+      if (!storage) return;
+      for (let i = 0; i < storage.length; i++) {
+        const key = storage.key(i);
+        if (key && key.startsWith(RECORD_PREFIX)) keys.add(key);
+      }
+    });
+    document.getElementById('records-count').textContent = keys.size;
+  }
+
+  function getStorage(storageName) {
+    try {
+      return window[storageName];
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveRecord(key, formData) {
+    const serialized = JSON.stringify(formData);
+    for (const storageName of RECORD_STORAGE_NAMES) {
+      const storage = getStorage(storageName);
+      if (!storage) continue;
+      try {
+        storage.setItem(key, serialized);
+        return storageName;
+      } catch (e) {
+        console.warn(`Errore salvataggio in ${storageName}`, e);
+        // try the next available storage
+      }
+    }
+    return null;
   }
 
   // Initialize

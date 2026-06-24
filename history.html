@@ -653,6 +653,7 @@
 
 <script>
   let pendingDeleteKey = null;
+  let pendingDeleteStorageName = null;
   let lastDetailTrigger = null;
   const DEFAULT_TEXT = {
     missing: 'N/D',
@@ -662,26 +663,71 @@
   };
   const PLACEHOLDER_VALUES = Object.values(DEFAULT_TEXT);
   const DETAIL_MODAL_TITLE_PREFIX = 'Scheda completa del ';
+  const HISTORY_RECORD_PREFIX = 'scheda_';
+  const RECORD_STORAGE_NAMES = ['localStorage', 'sessionStorage'];
+  const DOM_ID_ENCODER = new TextEncoder();
 
   function getAllRecords() {
     const records = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('scheda_')) {
-        try {
-          const data = JSON.parse(localStorage.getItem(key));
-          records.push({ key, data });
-        } catch (e) {
-          // skip malformed entries
+    const seenKeys = new Set();
+    RECORD_STORAGE_NAMES.forEach(storageName => {
+      const storage = getStorage(storageName);
+      if (!storage) return;
+      for (let i = 0; i < storage.length; i++) {
+        const key = storage.key(i);
+        const isRecord = key && key.startsWith(HISTORY_RECORD_PREFIX);
+        const alreadySeen = key && seenKeys.has(key);
+        if (isRecord && !alreadySeen) {
+          try {
+            const data = JSON.parse(storage.getItem(key));
+            records.push({ key, data, storageName });
+            seenKeys.add(key);
+          } catch (e) {
+            // skip malformed entries
+          }
         }
       }
-    }
+    });
     records.sort((a, b) => {
       if (a.data.data > b.data.data) return -1;
       if (a.data.data < b.data.data) return 1;
       return b.key.localeCompare(a.key);
     });
     return records;
+  }
+
+  function getStorage(storageName) {
+    try {
+      return window[storageName];
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function getRecordByKey(key, preferredStorageName) {
+    const storageNames = preferredStorageName ? [preferredStorageName] : RECORD_STORAGE_NAMES;
+    for (const storageName of storageNames) {
+      const storage = getStorage(storageName);
+      if (!storage) continue;
+      try {
+        const value = storage.getItem(key);
+        if (value === null) continue;
+        return JSON.parse(value);
+      } catch (e) {
+        // try the next available storage
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Converts a storage key into a unique DOM-safe ID suffix.
+   *
+   * @param {string} value The storage name and key to encode.
+   * @returns {string} A hexadecimal ID-safe representation.
+   */
+  function makeDomId(value) {
+    return Array.from(DOM_ID_ENCODER.encode(value), byte => byte.toString(16).padStart(2, '0')).join('');
   }
 
   function renderStats(records) {
@@ -812,9 +858,9 @@
       return;
     }
 
-    container.innerHTML = filtered.map(({ key, data: d }) => {
+    container.innerHTML = filtered.map(({ key, data: d, storageName }) => {
       const eduStr = joinListOrDefault(d.educatori, DEFAULT_TEXT.missing);
-      const safeKey = escapeHtml(key);
+      const hexCardId = makeDomId(`${storageName}-${key}`);
       const keyParam = encodeURIComponent(key);
       const cardLabels = [
         "Fascia d'età prevalente",
@@ -829,7 +875,7 @@
       ];
 
       return `
-        <div class="record-card ${urgencyClass(d.urgenza)}" id="card-${safeKey}">
+        <div class="record-card ${urgencyClass(d.urgenza)}" id="card-${hexCardId}">
           <div class="record-header">
             <div class="record-date">📅 ${escapeHtml(formatDate(d.data))}</div>
             <div class="record-badges">
@@ -849,13 +895,13 @@
             <div class="record-stat">😊 Clima: <strong>${escapeHtml(formatScoreOrDefault(d.clima))}</strong></div>
             <div class="record-stat">🤝 Apertura: <strong>${escapeHtml(formatScoreOrDefault(d.apertura))}</strong></div>
           </div>
-          <div class="detail-panel" id="detail-${safeKey}">
+          <div class="detail-panel" id="detail-${hexCardId}">
             ${renderDetailSections(d, cardLabels)}
           </div>
           <div class="record-actions">
-            <button class="btn-detail" onclick="openDetailModal(decodeURIComponent('${keyParam}'))">🔎 Scheda completa</button>
-            <button class="btn-copy" onclick="copyRecord(decodeURIComponent('${keyParam}'))">📤 Copia testo</button>
-            <button class="btn-delete" onclick="askDelete(decodeURIComponent('${keyParam}'))">🗑️</button>
+            <button class="btn-detail" onclick="openDetailModal(decodeURIComponent('${keyParam}'), '${storageName}')">🔎 Scheda completa</button>
+            <button class="btn-copy" onclick="copyRecord(decodeURIComponent('${keyParam}'), '${storageName}')">📤 Copia testo</button>
+            <button class="btn-delete" onclick="askDelete(decodeURIComponent('${keyParam}'), '${storageName}')">🗑️</button>
           </div>
         </div>`;
     }).join('');
@@ -888,9 +934,13 @@
     return text;
   }
 
-  function openDetailModal(key) {
+  function openDetailModal(key, storageName) {
     try {
-      const data = JSON.parse(localStorage.getItem(key));
+      const data = getRecordByKey(key, storageName);
+      if (!data) {
+        showToast('Impossibile caricare la scheda');
+        return;
+      }
       lastDetailTrigger = document.activeElement;
       document.getElementById('detail-modal-title').textContent = DETAIL_MODAL_TITLE_PREFIX + formatDate(data.data);
       document.getElementById('detail-modal-subtitle').textContent = [data.luogo, data.zona].filter(Boolean).join(' · ') || 'Dettaglio completo';
@@ -931,9 +981,13 @@
     }
   });
 
-  function copyRecord(key) {
+  function copyRecord(key, storageName) {
     try {
-      const data = JSON.parse(localStorage.getItem(key));
+      const data = getRecordByKey(key, storageName);
+      if (!data) {
+        showToast('Impossibile copiare la scheda');
+        return;
+      }
       const text = buildText(data);
       navigator.clipboard.writeText(text).then(() => {
         showToast('📋 Copiato!');
@@ -952,22 +1006,40 @@
     }
   }
 
-  function askDelete(key) {
+  function askDelete(key, storageName) {
     pendingDeleteKey = key;
+    pendingDeleteStorageName = storageName;
     document.getElementById('delete-modal').classList.add('open');
   }
 
   function closeDeleteModal() {
     pendingDeleteKey = null;
+    pendingDeleteStorageName = null;
     document.getElementById('delete-modal').classList.remove('open');
   }
 
   function confirmDelete() {
     if (pendingDeleteKey) {
-      localStorage.removeItem(pendingDeleteKey);
+      const storageNames = pendingDeleteStorageName ? [pendingDeleteStorageName] : RECORD_STORAGE_NAMES;
+      let deleted = false;
+      storageNames.forEach(storageName => {
+        const storage = getStorage(storageName);
+        if (!storage) return;
+        try {
+          const hadRecord = storage.getItem(pendingDeleteKey) !== null;
+          storage.removeItem(pendingDeleteKey);
+          deleted = deleted || hadRecord;
+        } catch (e) {
+          // continue with other available storage
+        }
+      });
       closeDeleteModal();
       renderRecords();
-      showToast('🗑️ Scheda eliminata');
+      if (deleted) {
+        showToast('🗑️ Scheda eliminata');
+      } else {
+        showToast('Errore durante l’eliminazione', 'var(--danger)');
+      }
     }
   }
 

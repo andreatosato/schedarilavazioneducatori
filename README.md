@@ -2,10 +2,15 @@
 
 App web statica per la rilevazione delle uscite educative di strada del progetto **Strade Aperte**.
 
+> **App online:** https://schedari-strade-aperte.azurestaticapps.net
+>
+> L'URL definitivo viene generato da Azure al primo deploy (output `appUrl` del Bicep) e
+> include un suffisso casuale: aggiornalo qui dopo aver eseguito il deploy se differisce.
+
 ## Funzionalità
 
 - **Compilazione scheda**: form completo per registrare ogni uscita (data, luogo, educatori, ragazzi incontrati, clima, criticità, rete territoriale, note).
-- **Salvataggio locale**: i dati vengono salvati nel `localStorage` del browser, senza necessità di un server.
+- **Persistenza dati**: le schede vengono salvate su **Azure Cosmos DB** (Free Tier) tramite la *database connection* integrata di Azure Static Web Apps, con fallback locale (`localStorage`/`sessionStorage`) del browser.
 - **Storico schede**: pagina dedicata per consultare, filtrare e gestire tutte le schede salvate, con statistiche aggregate.
 - **Esportazione CSV**: download di tutte le schede in formato CSV per l'analisi in Excel/Sheets.
 - **Copia testo**: genera un riepilogo formattato da incollare su WhatsApp o Email.
@@ -16,14 +21,109 @@ App web statica per la rilevazione delle uscite educative di strada del progetto
 |------|-------------|
 | `index.html` | Form di compilazione scheda |
 | `history.html` | Storico e gestione schede salvate |
-| `.nojekyll` | Disabilita Jekyll su GitHub Pages |
-| `.github/workflows/deploy.yml` | Workflow di deploy automatico su GitHub Pages |
+| `staticwebapp.config.json` | Configurazione di Azure Static Web Apps |
+| `swa-db-connections/staticwebapp.database.config.json` | Configurazione Data API Builder per Cosmos DB |
+| `swa-db-connections/schede.gql` | Schema GraphQL dell'entità Scheda |
+| `infra/main.bicep` | Template Bicep che provisiona **tutta** l'infrastruttura (Static Web App + Cosmos DB) |
+| `infra/main.bicepparam` | Parametri di default per il deploy Bicep |
+| `.github/workflows/azure-static-web-apps.yml` | Workflow di deploy automatico su Azure Static Web Apps |
 
-## Deploy su GitHub Pages
+## Architettura su Azure
 
-Il sito viene pubblicato automaticamente su GitHub Pages ad ogni push sul branch `main` tramite GitHub Actions.
+L'infrastruttura, creata interamente dal Bicep in un solo deployment, è la più economica possibile:
 
-Per abilitare GitHub Pages:
-1. Vai in **Settings → Pages**
-2. Seleziona **Source: GitHub Actions**
-3. Esegui un push sul branch `main`
+- **Azure Static Web Apps** (piano *Free*, gratuito) ospita il sito statico.
+- **Azure Cosmos DB for NoSQL** in *Free Tier* (1000 RU/s + 25 GB gratuiti a vita) memorizza le schede.
+- La **database connection** di Static Web Apps espone Cosmos DB tramite Data API Builder
+  (GraphQL su `/data-api/graphql`), senza bisogno di scrivere codice server.
+
+> ℹ️ Il *Free Tier* di Cosmos DB consente **un solo account gratuito per sottoscrizione**.
+> Se la sottoscrizione ne ha già uno, imposta `enableCosmosFreeTier = false` in
+> `infra/main.bicepparam` (l'account verrà comunque creato, ma con la normale tariffazione).
+
+## Deploy su Azure Static Web Apps
+
+### Prerequisiti per lanciare il Bicep
+
+Per eseguire il Bicep sulla tua sottoscrizione servono:
+
+1. Una **sottoscrizione Azure** attiva e l'[Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) installata.
+2. Login e selezione della sottoscrizione:
+   ```bash
+   az login
+   az account set --subscription "<id-o-nome-sottoscrizione>"
+   ```
+3. I resource provider `Microsoft.Web` e `Microsoft.DocumentDB` registrati (di norma lo sono già):
+   ```bash
+   az provider register --namespace Microsoft.Web
+   az provider register --namespace Microsoft.DocumentDB
+   ```
+4. Nessun account Cosmos DB *Free Tier* già presente nella sottoscrizione
+   (altrimenti imposta `enableCosmosFreeTier = false`).
+
+### 1. Provisioning dell'infrastruttura (Bicep)
+
+#### Opzione A – Automatico da GitHub Actions (consigliata)
+
+Il workflow `.github/workflows/provision-infra.yml` esegue il Bicep al posto tuo
+(crea il resource group e tutta l'infrastruttura). Usa **OpenID Connect (OIDC)**,
+quindi **non viene salvata nessuna password/secret di lunga durata** nel repo.
+
+1. Crea un'app/service principal in Entra ID e assegnale il ruolo *Contributor*
+   sulla sottoscrizione (o sul resource group), poi configura una *federated credential*
+   per GitHub Actions:
+   ```bash
+   az ad sp create-for-rbac \
+     --name "github-strade-aperte" \
+     --role Contributor \
+     --scopes /subscriptions/<subscription-id>
+
+   az ad app federated-credential create \
+     --id <app-client-id> \
+     --parameters '{
+       "name": "github-main",
+       "issuer": "https://token.actions.githubusercontent.com",
+       "subject": "repo:andreatosato/schedarilavazioneducatori:ref:refs/heads/main",
+       "audiences": ["api://AzureADTokenExchange"]
+     }'
+   ```
+2. In GitHub aggiungi questi **secret** del repository
+   (**Settings → Secrets and variables → Actions**):
+
+   | Secret | Valore |
+   |--------|--------|
+   | `AZURE_CLIENT_ID` | Application (client) ID dell'app Entra ID |
+   | `AZURE_TENANT_ID` | Tenant ID di Entra ID |
+   | `AZURE_SUBSCRIPTION_ID` | ID della sottoscrizione Azure |
+
+   Opzionalmente puoi impostare le **variables** `AZURE_RESOURCE_GROUP` e `AZURE_LOCATION`
+   (default: `rg-strade-aperte` e `westeurope`).
+3. Avvia il workflow **Provision Azure Infrastructure** da *Actions → Run workflow*.
+   Al termine, l'output `appUrl` del deployment contiene l'URL pubblico dell'app.
+
+#### Opzione B – Manuale da Azure CLI
+
+```bash
+az group create --name <rg-name> --location westeurope
+az deployment group create \
+  --resource-group <rg-name> \
+  --template-file infra/main.bicep \
+  --parameters infra/main.bicepparam
+```
+
+Al termine, l'output `appUrl` contiene l'URL pubblico dell'app.
+
+### 2. Configurazione del deploy automatico
+
+1. Recupera il deployment token della Static Web App (`schedari-strade-aperte` è il nome
+   di default definito in `infra/main.bicepparam`; usa lo stesso valore se lo hai modificato):
+   ```bash
+   az staticwebapp secrets list \
+     --name schedari-strade-aperte \
+     --resource-group <rg-name> \
+     --query "properties.apiKey" -o tsv
+   ```
+2. In GitHub, aggiungi il token come secret del repository con nome `AZURE_STATIC_WEB_APPS_API_TOKEN`
+   (**Settings → Secrets and variables → Actions**).
+3. Ad ogni push sul branch `main`, il workflow `azure-static-web-apps.yml` pubblica automaticamente il sito.
+   Le pull request generano ambienti di staging temporanei.
