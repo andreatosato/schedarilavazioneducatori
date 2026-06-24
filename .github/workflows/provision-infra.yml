@@ -43,36 +43,48 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Azure login
+      - name: Prepare Azure credentials
         env:
           AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
         run: |
           set -euo pipefail
           set +x
-          mapfile -t AZURE_AUTH < <(python3 <<'PY'
+          python3 <<'PY'
           import json
           import os
 
-          credentials = json.loads(os.environ["AZURE_CREDENTIALS"])
-          print(credentials["clientId"])
-          print(credentials["clientSecret"])
-          print(credentials["subscriptionId"])
-          print(credentials["tenantId"])
-          PY
-          )
-          CLIENT_ID="${AZURE_AUTH[0]}"
-          CLIENT_SECRET="${AZURE_AUTH[1]}"
-          SUBSCRIPTION_ID="${AZURE_AUTH[2]}"
-          TENANT_ID="${AZURE_AUTH[3]}"
-          printf '::add-mask::%s\n' "$CLIENT_SECRET"
+          raw_credentials = os.environ.get("AZURE_CREDENTIALS", "")
+          try:
+              credentials = json.loads(raw_credentials)
+          except json.JSONDecodeError as error:
+              raise SystemExit(f"AZURE_CREDENTIALS is not valid JSON: {error.msg}") from error
 
+          variables = {
+              "AZURE_CLIENT_ID": "clientId",
+              "AZURE_CLIENT_SECRET": "clientSecret",
+              "AZURE_SUBSCRIPTION_ID": "subscriptionId",
+              "AZURE_TENANT_ID": "tenantId",
+          }
+          missing = [key for key in variables.values() if not credentials.get(key)]
+          if missing:
+              raise SystemExit(f"AZURE_CREDENTIALS is missing required field(s): {', '.join(missing)}")
+
+          print(f'::add-mask::{credentials["clientSecret"]}')
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+              for variable, key in variables.items():
+                  print(f"{variable}={credentials[key]}", file=env_file)
+          PY
+
+      - name: Azure login
+        run: |
+          set -euo pipefail
           az login \
             --service-principal \
-            --username "$CLIENT_ID" \
-            --password "$CLIENT_SECRET" \
-            --tenant "$TENANT_ID" \
+            --username "$AZURE_CLIENT_ID" \
+            --password "$AZURE_CLIENT_SECRET" \
+            --tenant "$AZURE_TENANT_ID" \
             --output none
-          az account set --subscription "$SUBSCRIPTION_ID"
+          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 
       - name: Create resource group
         run: az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
