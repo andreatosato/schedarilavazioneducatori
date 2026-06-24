@@ -789,14 +789,7 @@
   const scales = { clima: 0, apertura: 0 };
   const RECORD_PREFIX = 'scheda_';
   const SAVE_MESSAGE = '✅ Scheda salvata!';
-  const DATA_API_GRAPHQL_ENDPOINT = '/data-api/graphql';
-  const CREATE_SCHEDA_MUTATION = `
-    mutation CreateScheda($item: CreateSchedaInput!) {
-      createScheda(item: $item) {
-        id
-      }
-    }
-  `;
+  const SCHEDA_API_ENDPOINT = '/api/schede';
 
   function changeCount(field, delta) {
     counts[field] = Math.max(0, counts[field] + delta);
@@ -920,7 +913,7 @@
     }
     const key = RECORD_PREFIX + (formData.data || 'nodata') + '_' + createRecordIdSuffix();
     const record = { ...formData, id: key };
-    const saved = await saveRecordToCosmos(record);
+    const saved = await saveRecordToBackend(record);
     if (!saved) {
       showToast('⚠️ Impossibile salvare. Riprova tra poco.', '#EA4335');
       return;
@@ -984,29 +977,21 @@
     return Date.now() + '_' + Math.random().toString(36).slice(2);
   }
 
-  async function saveRecordToCosmos(record) {
+  async function saveRecordToBackend(record) {
     if (typeof fetch !== 'function') return false;
 
     try {
-      const response = await fetch(DATA_API_GRAPHQL_ENDPOINT, {
+      const response = await fetch(SCHEDA_API_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: CREATE_SCHEDA_MUTATION,
-          variables: { item: record }
-        })
+        body: JSON.stringify(record)
       });
       if (!response.ok) {
         console.warn('Errore salvataggio su Cosmos DB', response.status, response.statusText);
         return false;
       }
 
-      const result = await response.json();
-      if (result.errors && result.errors.length > 0) {
-        console.warn('Errore salvataggio su Cosmos DB', result.errors);
-        return false;
-      }
-      const created = result.data && result.data.createScheda;
+      const created = await response.json();
       return Boolean(created && typeof created.id === 'string' && created.id.length > 0);
     } catch (e) {
       console.warn('Errore salvataggio su Cosmos DB', e);

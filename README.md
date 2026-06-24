@@ -10,7 +10,7 @@ App web statica per la rilevazione delle uscite educative di strada del progetto
 ## Funzionalità
 
 - **Compilazione scheda**: form completo per registrare ogni uscita (data, luogo, educatori, ragazzi incontrati, clima, criticità, rete territoriale, note).
-- **Persistenza dati**: le schede vengono salvate esclusivamente su **Azure Cosmos DB** (Free Tier) tramite la *database connection* integrata di Azure Static Web Apps.
+- **Persistenza dati**: le schede vengono salvate esclusivamente su **Azure Cosmos DB** (Free Tier) tramite le Azure Functions integrate in Azure Static Web Apps.
 - **Storico schede**: pagina dedicata per consultare, filtrare e gestire tutte le schede salvate, con statistiche aggregate.
 - **Esportazione CSV**: download di tutte le schede in formato CSV per l'analisi in Excel/Sheets.
 - **Copia testo**: genera un riepilogo formattato da incollare su WhatsApp o Email.
@@ -22,8 +22,7 @@ App web statica per la rilevazione delle uscite educative di strada del progetto
 | `index.html` | Form di compilazione scheda |
 | `history.html` | Storico e gestione schede salvate |
 | `staticwebapp.config.json` | Configurazione di Azure Static Web Apps |
-| `swa-db-connections/staticwebapp.database.config.json` | Configurazione Data API Builder per Cosmos DB |
-| `swa-db-connections/schede.gql` | Schema GraphQL dell'entità Scheda |
+| `api/` | Azure Functions HTTP che leggono/scrivono le schede su Cosmos DB |
 | `infra/main.bicep` | Template Bicep che provisiona solo Cosmos DB Free Tier |
 | `infra/main.bicepparam` | Parametri di default per il deploy Bicep |
 | `.github/workflows/azure-static-web-apps-black-sand-00abc5803.yml` | Workflow di deploy automatico su Azure Static Web Apps |
@@ -34,8 +33,8 @@ L'infrastruttura è mantenuta il più economica possibile:
 
 - **Azure Static Web Apps** (piano *Free*, gratuito) ospita il sito statico.
 - La pipeline di infrastruttura crea solo **Azure Cosmos DB for NoSQL** in *Free Tier* (1000 RU/s + 25 GB gratuiti a vita), con database e container `schede`.
-- La **database connection** di Static Web Apps espone Cosmos DB tramite Data API Builder
-  (GraphQL su `/data-api/graphql`), senza bisogno di scrivere codice server.
+- Le **Azure Functions** integrate in Static Web Apps espongono solo gli endpoint `/api/schede`
+  al frontend e leggono/scrivono direttamente sul container Cosmos DB.
 
 > ℹ️ Il *Free Tier* di Cosmos DB consente **un solo account gratuito per sottoscrizione**.
 > Se la sottoscrizione ne ha già uno, imposta `enableCosmosFreeTier = false` in
@@ -124,15 +123,16 @@ Al termine, gli output contengono i nomi di account, database e container Cosmos
      --resource-group rg-stradeaperte \
      --query "properties.apiKey" -o tsv
    ```
-2. In GitHub, aggiungi questi secret del repository
+2. In GitHub, aggiungi il deployment token come secret del repository
    (**Settings → Secrets and variables → Actions**).
 
    | Secret | Valore |
    |--------|--------|
    | `AZURE_STATIC_WEB_APPS_API_TOKEN_BLACK_SAND_00ABC5803` | Deployment token della Static Web App |
-   | `COSMOS_CONNECTIONSTRING` | Connection string del database Cosmos DB usata da Data API Builder |
-3. Ad ogni push sul branch `main`, il workflow `azure-static-web-apps-black-sand-00abc5803.yml`
-   pubblica automaticamente il sito e la configurazione Data API Builder in `swa-db-connections`.
-   La configurazione legge `COSMOS_CONNECTIONSTRING` come variabile d'ambiente, senza
+3. Configura la connection string tra le **Application settings** della Static Web App
+   (ad esempio con `az staticwebapp appsettings set --name black-sand-00abc5803 --resource-group rg-stradeaperte --setting-names COSMOS_CONNECTIONSTRING="<connection-string>"`).
+4. Ad ogni push sul branch `main`, il workflow `azure-static-web-apps-black-sand-00abc5803.yml`
+   pubblica automaticamente il sito e le Azure Functions in `api/`.
+   Le Functions leggono `COSMOS_CONNECTIONSTRING` dalle impostazioni dell'app, senza
    salvare la connection string nel repository. Le pull request generano ambienti di
    staging temporanei.
