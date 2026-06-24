@@ -719,10 +719,10 @@
     try {
       const records = await fetchRecordsFromCosmos();
       records.sort((a, b) => {
-        const aDate = a.data.data;
-        const bDate = b.data.data;
-        if (aDate > bDate) return -1;
-        if (aDate < bDate) return 1;
+        const dateA = a.data.data;
+        const dateB = b.data.data;
+        if (dateA > dateB) return -1;
+        if (dateA < dateB) return 1;
         return b.key.localeCompare(a.key);
       });
       allRecords = records;
@@ -773,7 +773,8 @@
 
     const result = await response.json();
     if (result.errors && result.errors.length > 0) {
-      throw new Error('Operazione GraphQL non riuscita: ' + result.errors.map(error => error.message).join('; '));
+      const operationName = query.match(/\b(?:query|mutation)\s+(\w+)/)?.[1] || 'sconosciuta';
+      throw new Error(`Operazione GraphQL non riuscita (${operationName}): ` + result.errors.map(error => error.message).join('; '));
     }
     return result;
   }
