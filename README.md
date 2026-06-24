@@ -2,7 +2,7 @@
 
 App web statica per la rilevazione delle uscite educative di strada del progetto **Strade Aperte**.
 
-> **App online:** https://schedari-strade-aperte.azurestaticapps.net
+> **App online:** https://black-sand-00abc5803.7.azurestaticapps.net/
 >
 > L'URL definitivo viene generato da Azure al primo deploy (output `appUrl` del Bicep) e
 > include un suffisso casuale: aggiornalo qui dopo aver eseguito il deploy se differisce.
@@ -26,7 +26,7 @@ App web statica per la rilevazione delle uscite educative di strada del progetto
 | `swa-db-connections/schede.gql` | Schema GraphQL dell'entità Scheda |
 | `infra/main.bicep` | Template Bicep che provisiona **tutta** l'infrastruttura (Static Web App + Cosmos DB) |
 | `infra/main.bicepparam` | Parametri di default per il deploy Bicep |
-| `.github/workflows/azure-static-web-apps.yml` | Workflow di deploy automatico su Azure Static Web Apps |
+| `.github/workflows/azure-static-web-apps-black-sand-00abc5803.yml` | Workflow di deploy automatico su Azure Static Web Apps |
 
 ## Architettura su Azure
 
@@ -115,15 +115,17 @@ Al termine, l'output `appUrl` contiene l'URL pubblico dell'app.
 
 ### 2. Configurazione del deploy automatico
 
-1. Recupera il deployment token della Static Web App (`schedari-strade-aperte` è il nome
+1. Recupera il deployment token della Static Web App (`black-sand-00abc5803` è il nome
    di default definito in `infra/main.bicepparam`; usa lo stesso valore se lo hai modificato):
    ```bash
    az staticwebapp secrets list \
-     --name schedari-strade-aperte \
+     --name black-sand-00abc5803 \
      --resource-group <rg-name> \
      --query "properties.apiKey" -o tsv
    ```
-2. In GitHub, aggiungi il token come secret del repository con nome `AZURE_STATIC_WEB_APPS_API_TOKEN`
+2. In GitHub, aggiungi il token come secret del repository con nome
+   `AZURE_STATIC_WEB_APPS_API_TOKEN_BLACK_SAND_00ABC5803`
    (**Settings → Secrets and variables → Actions**).
-3. Ad ogni push sul branch `main`, il workflow `azure-static-web-apps.yml` pubblica automaticamente il sito.
+3. Ad ogni push sul branch `main`, il workflow `azure-static-web-apps-black-sand-00abc5803.yml`
+   pubblica automaticamente il sito e la configurazione Data API Builder in `swa-db-connections`.
    Le pull request generano ambienti di staging temporanei.
