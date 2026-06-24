@@ -49,9 +49,14 @@ jobs:
         run: |
           set -euo pipefail
           set +x
+          credentials_file="$(mktemp)"
+          trap 'rm -f "$credentials_file"' EXIT
+          export CREDENTIALS_FILE="$credentials_file"
+
           python3 <<'PY'
           import json
           import os
+          import shlex
 
           raw_credentials = os.environ.get("AZURE_CREDENTIALS", "")
           try:
@@ -69,11 +74,19 @@ jobs:
           if missing:
               raise SystemExit(f"AZURE_CREDENTIALS is missing required field(s): {', '.join(missing)}")
 
-          print(f'::add-mask::{credentials["clientSecret"]}')
-          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+          with open(os.environ["CREDENTIALS_FILE"], "w", encoding="utf-8") as credentials_file:
               for variable, key in variables.items():
-                  print(f"{variable}={credentials[key]}", file=env_file)
+                  print(f"{variable}={shlex.quote(credentials[key])}", file=credentials_file)
           PY
+
+          . "$credentials_file"
+          printf '::add-mask::%s\n' "$AZURE_CLIENT_SECRET"
+          {
+            printf 'AZURE_CLIENT_ID=%s\n' "$AZURE_CLIENT_ID"
+            printf 'AZURE_CLIENT_SECRET=%s\n' "$AZURE_CLIENT_SECRET"
+            printf 'AZURE_SUBSCRIPTION_ID=%s\n' "$AZURE_SUBSCRIPTION_ID"
+            printf 'AZURE_TENANT_ID=%s\n' "$AZURE_TENANT_ID"
+          } >> "$GITHUB_ENV"
 
       - name: Azure login
         run: |
