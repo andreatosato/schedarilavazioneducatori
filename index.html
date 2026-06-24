@@ -997,7 +997,7 @@
       if (!storage) continue;
       try {
         storage.setItem(key, serialized);
-        if (storage.getItem(key) === serialized) return storageName;
+        return storageName;
       } catch (e) {
         // try the next available storage
       }

@@ -653,6 +653,7 @@
 
 <script>
   let pendingDeleteKey = null;
+  let pendingDeleteStorageName = null;
   let lastDetailTrigger = null;
   const DEFAULT_TEXT = {
     missing: 'N/D',
@@ -667,17 +668,15 @@
 
   function getAllRecords() {
     const records = [];
-    const seenKeys = new Set();
     RECORD_STORAGE_NAMES.forEach(storageName => {
       const storage = getStorage(storageName);
       if (!storage) return;
       for (let i = 0; i < storage.length; i++) {
         const key = storage.key(i);
-        if (key && key.startsWith(RECORD_PREFIX) && !seenKeys.has(key)) {
+        if (key && key.startsWith(RECORD_PREFIX)) {
           try {
             const data = JSON.parse(storage.getItem(key));
-            records.push({ key, data });
-            seenKeys.add(key);
+            records.push({ key, data, storageName });
           } catch (e) {
             // skip malformed entries
           }
@@ -700,8 +699,9 @@
     }
   }
 
-  function getRecordByKey(key) {
-    for (const storageName of RECORD_STORAGE_NAMES) {
+  function getRecordByKey(key, preferredStorageName) {
+    const storageNames = preferredStorageName ? [preferredStorageName] : RECORD_STORAGE_NAMES;
+    for (const storageName of storageNames) {
       const storage = getStorage(storageName);
       if (!storage) continue;
       try {
@@ -842,9 +842,9 @@
       return;
     }
 
-    container.innerHTML = filtered.map(({ key, data: d }) => {
+    container.innerHTML = filtered.map(({ key, data: d, storageName }) => {
       const eduStr = joinListOrDefault(d.educatori, DEFAULT_TEXT.missing);
-      const safeKey = escapeHtml(key);
+      const safeCardId = escapeHtml(storageName + '-' + key);
       const keyParam = encodeURIComponent(key);
       const cardLabels = [
         "Fascia d'età prevalente",
@@ -859,7 +859,7 @@
       ];
 
       return `
-        <div class="record-card ${urgencyClass(d.urgenza)}" id="card-${safeKey}">
+        <div class="record-card ${urgencyClass(d.urgenza)}" id="card-${safeCardId}">
           <div class="record-header">
             <div class="record-date">📅 ${escapeHtml(formatDate(d.data))}</div>
             <div class="record-badges">
@@ -879,13 +879,13 @@
             <div class="record-stat">😊 Clima: <strong>${escapeHtml(formatScoreOrDefault(d.clima))}</strong></div>
             <div class="record-stat">🤝 Apertura: <strong>${escapeHtml(formatScoreOrDefault(d.apertura))}</strong></div>
           </div>
-          <div class="detail-panel" id="detail-${safeKey}">
+          <div class="detail-panel" id="detail-${safeCardId}">
             ${renderDetailSections(d, cardLabels)}
           </div>
           <div class="record-actions">
-            <button class="btn-detail" onclick="openDetailModal(decodeURIComponent('${keyParam}'))">🔎 Scheda completa</button>
-            <button class="btn-copy" onclick="copyRecord(decodeURIComponent('${keyParam}'))">📤 Copia testo</button>
-            <button class="btn-delete" onclick="askDelete(decodeURIComponent('${keyParam}'))">🗑️</button>
+            <button class="btn-detail" onclick="openDetailModal(decodeURIComponent('${keyParam}'), '${storageName}')">🔎 Scheda completa</button>
+            <button class="btn-copy" onclick="copyRecord(decodeURIComponent('${keyParam}'), '${storageName}')">📤 Copia testo</button>
+            <button class="btn-delete" onclick="askDelete(decodeURIComponent('${keyParam}'), '${storageName}')">🗑️</button>
           </div>
         </div>`;
     }).join('');
@@ -918,9 +918,9 @@
     return text;
   }
 
-  function openDetailModal(key) {
+  function openDetailModal(key, storageName) {
     try {
-      const data = getRecordByKey(key);
+      const data = getRecordByKey(key, storageName);
       if (!data) throw new Error('Record not found');
       lastDetailTrigger = document.activeElement;
       document.getElementById('detail-modal-title').textContent = DETAIL_MODAL_TITLE_PREFIX + formatDate(data.data);
@@ -962,9 +962,9 @@
     }
   });
 
-  function copyRecord(key) {
+  function copyRecord(key, storageName) {
     try {
-      const data = getRecordByKey(key);
+      const data = getRecordByKey(key, storageName);
       if (!data) throw new Error('Record not found');
       const text = buildText(data);
       navigator.clipboard.writeText(text).then(() => {
@@ -984,19 +984,22 @@
     }
   }
 
-  function askDelete(key) {
+  function askDelete(key, storageName) {
     pendingDeleteKey = key;
+    pendingDeleteStorageName = storageName;
     document.getElementById('delete-modal').classList.add('open');
   }
 
   function closeDeleteModal() {
     pendingDeleteKey = null;
+    pendingDeleteStorageName = null;
     document.getElementById('delete-modal').classList.remove('open');
   }
 
   function confirmDelete() {
     if (pendingDeleteKey) {
-      RECORD_STORAGE_NAMES.forEach(storageName => {
+      const storageNames = pendingDeleteStorageName ? [pendingDeleteStorageName] : RECORD_STORAGE_NAMES;
+      storageNames.forEach(storageName => {
         const storage = getStorage(storageName);
         if (!storage) return;
         try {
