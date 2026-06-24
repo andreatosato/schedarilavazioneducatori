@@ -1007,7 +1007,8 @@
   async function saveRecord(key, formData) {
     const serialized = JSON.stringify(formData);
     if (await saveRecordToCosmos(formData)) {
-      cacheRecordLocally(key, serialized);
+      const cachedStorage = cacheRecordLocally(key, serialized);
+      if (!cachedStorage) console.warn('Scheda salvata su Cosmos DB, ma non nella cache locale');
       return 'cosmosDb';
     }
 
@@ -1051,7 +1052,8 @@
         console.warn('Errore salvataggio su Cosmos DB', result.errors);
         return false;
       }
-      return Boolean(result.data && result.data.createScheda);
+      const created = result.data && result.data.createScheda;
+      return Boolean(created && created.id === formData.id);
     } catch (e) {
       console.warn('Errore salvataggio su Cosmos DB', e);
       return false;
