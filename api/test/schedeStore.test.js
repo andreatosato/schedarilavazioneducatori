@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const { normalizeScheda, toHttpError } = require('../shared/schedeStore');
+const { normalizeScheda, toHttpError, ConfigurationError } = require('../shared/schedeStore');
 
 test('normalizeScheda keeps only expected fields and coerces values', () => {
   const scheda = normalizeScheda({
@@ -45,4 +45,36 @@ test('toHttpError maps Cosmos conflicts to HTTP 409', () => {
     status: 409,
     body: { error: 'Scheda già esistente' }
   });
+});
+
+test('toHttpError maps a missing connection string to HTTP 503', () => {
+  const error = new ConfigurationError('COSMOS_CONNECTIONSTRING non configurata');
+  assert.deepEqual(toHttpError(error), {
+    status: 503,
+    body: { error: 'COSMOS_CONNECTIONSTRING non configurata' }
+  });
+});
+
+test('getContainer throws a ConfigurationError when the connection string is missing', () => {
+  const previous = process.env.COSMOS_CONNECTIONSTRING;
+  delete process.env.COSMOS_CONNECTIONSTRING;
+  try {
+    const { getContainer } = require('../shared/schedeStore');
+    assert.throws(() => getContainer(), ConfigurationError);
+  } finally {
+    if (previous === undefined) delete process.env.COSMOS_CONNECTIONSTRING;
+    else process.env.COSMOS_CONNECTIONSTRING = previous;
+  }
+});
+
+test('getContainer treats a whitespace-only connection string as missing', () => {
+  const previous = process.env.COSMOS_CONNECTIONSTRING;
+  process.env.COSMOS_CONNECTIONSTRING = '   ';
+  try {
+    const { getContainer } = require('../shared/schedeStore');
+    assert.throws(() => getContainer(), ConfigurationError);
+  } finally {
+    if (previous === undefined) delete process.env.COSMOS_CONNECTIONSTRING;
+    else process.env.COSMOS_CONNECTIONSTRING = previous;
+  }
 });

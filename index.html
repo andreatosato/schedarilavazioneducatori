@@ -913,9 +913,9 @@
     }
     const key = RECORD_PREFIX + (formData.data || 'nodata') + '_' + createRecordIdSuffix();
     const record = { ...formData, id: key };
-    const saved = await saveRecordToBackend(record);
-    if (!saved) {
-      showToast('⚠️ Impossibile salvare. Riprova tra poco.', '#EA4335');
+    const result = await saveRecordToBackend(record);
+    if (!result.ok) {
+      showToast(`⚠️ ${result.error || 'Impossibile salvare. Riprova tra poco.'}`, '#EA4335');
       return;
     }
     showToast(SAVE_MESSAGE);
@@ -978,7 +978,9 @@
   }
 
   async function saveRecordToBackend(record) {
-    if (typeof fetch !== 'function') return false;
+    if (typeof fetch !== 'function') {
+      return { ok: false, error: 'Salvataggio non disponibile su questo browser.' };
+    }
 
     try {
       const response = await fetch(SCHEDA_API_ENDPOINT, {
@@ -987,16 +989,31 @@
         body: JSON.stringify(record)
       });
       if (!response.ok) {
-        console.warn('Errore salvataggio su Cosmos DB', response.status, response.statusText);
-        return false;
+        const error = await extractApiError(response);
+        console.warn('Errore salvataggio su Cosmos DB', response.status, error);
+        return { ok: false, error };
       }
 
       const created = await response.json();
-      return Boolean(created && typeof created.id === 'string' && created.id.length > 0);
+      const ok = Boolean(created && typeof created.id === 'string' && created.id.length > 0);
+      return ok
+        ? { ok: true }
+        : { ok: false, error: 'Risposta inattesa dal server durante il salvataggio.' };
     } catch (e) {
       console.warn('Errore salvataggio su Cosmos DB', e);
-      return false;
+      return { ok: false, error: 'Errore di rete durante il salvataggio. Riprova tra poco.' };
     }
+  }
+
+  async function extractApiError(response) {
+    let message = '';
+    try {
+      const payload = await response.json();
+      if (payload && typeof payload.error === 'string') message = payload.error;
+    } catch (e) {
+      // Response body was not JSON; fall back to the status code.
+    }
+    return message || `Errore Azure Functions API (HTTP ${response.status})`;
   }
 
   // Initialize

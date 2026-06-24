@@ -711,7 +711,7 @@
         : SCHEDA_API_ENDPOINT;
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(`Azure Functions API HTTP ${response.status}`);
+        throw new Error(await extractApiError(response));
       }
 
       const result = await response.json();
@@ -723,6 +723,17 @@
     } while (continuationToken);
 
     return records;
+  }
+
+  async function extractApiError(response) {
+    let message = '';
+    try {
+      const payload = await response.json();
+      if (payload && typeof payload.error === 'string') message = payload.error;
+    } catch (e) {
+      // Response body was not JSON; fall back to the status code.
+    }
+    return message || `Azure Functions API HTTP ${response.status}`;
   }
 
   async function deleteRecordFromBackend(id) {
