@@ -48,6 +48,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Check Azure CLI
+        run: command -v az
+
       - name: Validate Bicep
         run: |
           set -euo pipefail
@@ -55,7 +58,7 @@ jobs:
           echo "Bicep template validation successful."
 
       - name: Manual deployment instructions
-        if: ${{ github.event.inputs.mode != 'deploy' }}
+        if: ${{ github.event.inputs.mode == 'validate' }}
         run: |
           cat <<EOF
           Bicep validation completed.
@@ -90,7 +93,7 @@ jobs:
             --username "$AZURE_CLIENT_ID" \
             --password "$AZURE_CLIENT_SECRET" \
             --tenant "$AZURE_TENANT_ID" \
-            --output none 2>"$login_error" || {
+            --output none >"$login_error" 2>&1 || {
               status=$?
               cat "$login_error" >&2
               if grep -q 'AADSTS53003' "$login_error"; then
