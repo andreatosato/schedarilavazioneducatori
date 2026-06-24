@@ -74,15 +74,17 @@ crea il resource group e **solo** l'account Cosmos DB Free Tier con database/con
    az ad sp create-for-rbac \
      --name "github-strade-aperte" \
      --role Contributor \
-     --scopes /subscriptions/<subscription-id> \
-     --sdk-auth
+     --scopes /subscriptions/<subscription-id>
    ```
-2. Copia il JSON prodotto dal comando precedente in questo **secret** del repository
+2. Crea un client secret per l'app Entra ID, poi aggiungi questi **secret** del repository
    (**Settings → Secrets and variables → Actions**):
 
    | Secret | Valore |
    |--------|--------|
-   | `AZURE_CREDENTIALS` | JSON con `clientId`, `clientSecret`, `subscriptionId`, `tenantId` |
+   | `AZURE_CLIENT_ID` | Application (client) ID dell'app Entra ID |
+   | `AZURE_CLIENT_SECRET` | Client secret dell'app Entra ID |
+   | `AZURE_TENANT_ID` | Tenant ID di Entra ID |
+   | `AZURE_SUBSCRIPTION_ID` | ID della sottoscrizione Azure |
 
    Opzionalmente puoi impostare le **variables** `AZURE_RESOURCE_GROUP` e `AZURE_LOCATION`
    (default: `rg-strade-aperte` e `westeurope`).
@@ -92,9 +94,9 @@ crea il resource group e **solo** l'account Cosmos DB Free Tier con database/con
    account gratuito prima del deploy.
 
 > Se vedi l'errore `AADSTS53003` con OIDC, è una policy di Conditional Access del tenant
-> che blocca l'emissione del token. Questo workflow usa `AZURE_CREDENTIALS` proprio per
-> evitare la federated credential OIDC; in alternativa devi far escludere/abilitare la
-> service principal nelle policy del tenant.
+> che blocca l'emissione del token. Questo workflow usa un client secret
+> (`AZURE_CLIENT_SECRET`) proprio per evitare la federated credential OIDC; in alternativa
+> devi far escludere/abilitare la service principal nelle policy del tenant.
 
 #### Opzione B – Manuale da Azure CLI
 

@@ -4,14 +4,11 @@ name: Provision Cosmos DB Free Tier
 # Authentication uses an Azure service principal secret because OIDC token
 # issuance can be blocked by tenant Conditional Access policies.
 #
-# Required GitHub Actions secret (Settings -> Secrets and variables -> Actions):
-#   AZURE_CREDENTIALS - JSON credentials for an Azure service principal:
-#     {
-#       "clientId": "<application-client-id>",
-#       "clientSecret": "<client-secret>",
-#       "subscriptionId": "<subscription-id>",
-#       "tenantId": "<tenant-id>"
-#     }
+# Required GitHub Actions secrets (Settings -> Secrets and variables -> Actions):
+#   AZURE_CLIENT_ID        - Application (client) ID of the Entra ID app/service principal
+#   AZURE_CLIENT_SECRET    - Client secret of the Entra ID app/service principal
+#   AZURE_TENANT_ID        - Entra ID tenant ID
+#   AZURE_SUBSCRIPTION_ID  - Target Azure subscription ID
 #
 # Optional GitHub Actions variables:
 #   AZURE_RESOURCE_GROUP   - Resource group name (default: rg-strade-aperte)
@@ -43,51 +40,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Prepare Azure credentials
-        env:
-          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
-        run: |
-          set -euo pipefail
-          credentials_file="$(mktemp)"
-          trap 'rm -f "$credentials_file"' EXIT
-          export CREDENTIALS_FILE="$credentials_file"
-
-          python3 <<'PY'
-          import json
-          import os
-          import shlex
-
-          raw_credentials = os.environ.get("AZURE_CREDENTIALS", "")
-          try:
-              credentials = json.loads(raw_credentials)
-          except json.JSONDecodeError as error:
-              raise SystemExit(f"AZURE_CREDENTIALS is not valid JSON: {error}") from error
-
-          variables = {
-              "AZURE_CLIENT_ID": "clientId",
-              "AZURE_CLIENT_SECRET": "clientSecret",
-              "AZURE_SUBSCRIPTION_ID": "subscriptionId",
-              "AZURE_TENANT_ID": "tenantId",
-          }
-          missing = [key for key in variables.values() if not credentials.get(key)]
-          if missing:
-              raise SystemExit(f"AZURE_CREDENTIALS is missing required field(s): {', '.join(missing)}")
-
-          with open(os.environ["CREDENTIALS_FILE"], "w", encoding="utf-8") as output_file:
-              for variable, key in variables.items():
-                  print(f"{variable}={shlex.quote(credentials[key])}", file=output_file)
-          PY
-
-          . "$credentials_file"
-          printf '::add-mask::%s\n' "$AZURE_CLIENT_SECRET"
-          {
-            printf 'AZURE_CLIENT_ID=%s\n' "$AZURE_CLIENT_ID"
-            printf 'AZURE_CLIENT_SECRET=%s\n' "$AZURE_CLIENT_SECRET"
-            printf 'AZURE_SUBSCRIPTION_ID=%s\n' "$AZURE_SUBSCRIPTION_ID"
-            printf 'AZURE_TENANT_ID=%s\n' "$AZURE_TENANT_ID"
-          } >> "$GITHUB_ENV"
-
       - name: Azure login
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
           set -euo pipefail
           az login \
