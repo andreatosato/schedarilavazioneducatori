@@ -52,6 +52,7 @@ jobs:
         run: |
           set -euo pipefail
           az bicep build --file infra/main.bicep --outfile "$RUNNER_TEMP/main.json"
+          echo "Bicep template validation successful."
 
       - name: Manual deployment instructions
         if: ${{ github.event.inputs.mode != 'deploy' }}
@@ -83,15 +84,16 @@ jobs:
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
           set -euo pipefail
+          login_error="$RUNNER_TEMP/azure-login-error.log"
           az login \
             --service-principal \
             --username "$AZURE_CLIENT_ID" \
             --password "$AZURE_CLIENT_SECRET" \
             --tenant "$AZURE_TENANT_ID" \
-            --output none 2>login-error.log || {
+            --output none 2>"$login_error" || {
               status=$?
-              cat login-error.log >&2
-              if grep -q 'AADSTS53003' login-error.log; then
+              cat "$login_error" >&2
+              if grep -q 'AADSTS53003' "$login_error"; then
                 echo "::error::Azure blocked token issuance with AADSTS53003."
                 echo "::error::Run mode=validate and deploy from Azure Cloud Shell/trusted session, or ask the tenant administrator to allow this service principal in Conditional Access policies."
               fi
