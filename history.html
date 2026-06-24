@@ -1175,12 +1175,14 @@
     return 'StradeAperte2026';
   }
 
+  let historyAuthKey = null;
+
   function submitAuth() {
     const input = document.getElementById('auth-input');
     const errorEl = document.getElementById('auth-error');
     const expected = getExpectedPassword();
     if (input.value === expected) {
-      sessionStorage.setItem('historyAuth', getAuthDayKey());
+      historyAuthKey = getAuthDayKey();
       unlockHistory();
     } else {
       errorEl.textContent = 'Password errata. Riprova.';
@@ -1195,11 +1197,10 @@
   }
 
   function initAuth() {
-    if (sessionStorage.getItem('historyAuth') === getAuthDayKey()) {
+    if (historyAuthKey === getAuthDayKey()) {
       unlockHistory();
     } else {
-      // Clear any stale auth from a previous day
-      sessionStorage.removeItem('historyAuth');
+      historyAuthKey = null;
       const input = document.getElementById('auth-input');
       if (input) input.focus();
     }
