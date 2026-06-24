@@ -51,7 +51,10 @@ jobs:
       - name: Validate Bicep
         run: |
           set -euo pipefail
-          az bicep build --file infra/main.bicep --outfile "$RUNNER_TEMP/main.json"
+          if ! az bicep build --file infra/main.bicep --outfile "$RUNNER_TEMP/main.json"; then
+            echo "::error::Bicep validation failed. Check that Azure CLI with Bicep support is available on the runner."
+            exit 1
+          fi
           echo "Bicep template validation successful for mode=${{ github.event.inputs.mode }}."
 
       - name: Manual deployment instructions
@@ -97,6 +100,8 @@ jobs:
             if grep -q 'AADSTS53003' <<< "$login_output"; then
               echo "::error title=Azure login blocked::Azure blocked token issuance with AADSTS53003."
               echo "::error::Run mode=validate and deploy from Azure Cloud Shell/trusted session, or ask the tenant administrator to allow this service principal."
+            else
+              echo "::error title=Azure login failed::Azure login failed. See Azure CLI output above."
             fi
             exit 1
           fi
