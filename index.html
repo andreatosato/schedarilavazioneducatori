@@ -789,6 +789,10 @@
   const scales = { clima: 0, apertura: 0 };
   const RECORD_PREFIX = 'scheda_';
   const RECORD_STORAGE_NAMES = ['localStorage', 'sessionStorage'];
+  const SAVE_MESSAGES = {
+    localStorage: '✅ Scheda salvata!',
+    sessionStorage: '✅ Scheda salvata per questa sessione!'
+  };
 
   function changeCount(field, delta) {
     counts[field] = Math.max(0, counts[field] + delta);
@@ -917,7 +921,7 @@
       return;
     }
     updateRecordsCount();
-    showToast(savedStorage === 'localStorage' ? '✅ Scheda salvata!' : '✅ Scheda salvata per questa sessione!');
+    showToast(SAVE_MESSAGES[savedStorage]);
     setTimeout(resetForm, 1800);
   }
 
