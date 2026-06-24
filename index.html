@@ -803,6 +803,7 @@
     }
   `;
   const LOCAL_CACHE_WARNING = 'Scheda salvata su Cosmos DB con successo, ma cache locale non disponibile';
+  let localCacheWarningShown = false;
 
   function changeCount(field, delta) {
     counts[field] = Math.max(0, counts[field] + delta);
@@ -1009,7 +1010,10 @@
     const serialized = JSON.stringify(formData);
     if (await saveRecordToCosmos(formData)) {
       const cachedStorage = cacheRecordLocally(key, serialized);
-      if (!cachedStorage) console.warn(LOCAL_CACHE_WARNING);
+      if (!cachedStorage && !localCacheWarningShown) {
+        console.warn(LOCAL_CACHE_WARNING);
+        localCacheWarningShown = true;
+      }
       return 'cosmosDB';
     }
 
@@ -1054,7 +1058,7 @@
         return false;
       }
       const created = result.data && result.data.createScheda;
-      return Boolean(created && typeof created.id === 'string' && created.id === formData.id);
+      return Boolean(created && typeof created.id === 'string' && created.id.length > 0);
     } catch (e) {
       console.warn('Errore salvataggio su Cosmos DB', e);
       return false;
