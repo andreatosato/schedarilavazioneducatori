@@ -49,7 +49,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Check Azure CLI
-        run: command -v az || { echo "::error::Azure CLI not found"; exit 1; }
+        run: command -v az || { echo "::error::Azure CLI not found in runner environment (unexpected)"; exit 1; }
 
       - name: Validate Bicep
         run: |
@@ -99,9 +99,12 @@ jobs:
           if [ "$status" -ne 0 ]; then
             printf '%s\n' "$login_output" >&2
             if printf '%s\n' "$login_output" | grep -q 'AADSTS53003'; then
-              message='Azure blocked token issuance with AADSTS53003.'
-              message="$message Run mode=validate and deploy from Azure Cloud Shell/trusted session."
-              message="$message Or ask the tenant administrator to allow this service principal."
+              message=$(cat <<'EOF'
+          Azure blocked token issuance with AADSTS53003.
+          Run mode=validate and deploy from Azure Cloud Shell/trusted session,
+          or ask the tenant administrator to allow this service principal.
+          EOF
+              )
               echo "::error title=Azure login blocked::$message"
             fi
             exit "$status"
