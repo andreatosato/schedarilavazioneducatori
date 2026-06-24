@@ -1003,6 +1003,7 @@
         storage.setItem(key, serialized);
         return storageName;
       } catch (e) {
+        console.warn('Errore salvataggio in ' + storageName, e);
         // try the next available storage
       }
     }

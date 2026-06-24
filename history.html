@@ -715,6 +715,10 @@
     return null;
   }
 
+  function makeDomId(value) {
+    return btoa(value).replace(/=+$/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  }
+
   function renderStats(records) {
     const totalRagazzi = records.reduce((s, r) => s + (r.data.ragazzi || 0), 0);
     const totalNuovi = records.reduce((s, r) => s + (r.data.nuovi || 0), 0);
@@ -845,8 +849,7 @@
 
     container.innerHTML = filtered.map(({ key, data: d, storageName }) => {
       const eduStr = joinListOrDefault(d.educatori, DEFAULT_TEXT.missing);
-      const cardId = (storageName + '-' + key).replace(/[^A-Za-z0-9_-]/g, '_');
-      const safeCardId = escapeHtml(cardId);
+      const safeCardId = escapeHtml(makeDomId(storageName + '-' + key));
       const keyParam = encodeURIComponent(key);
       const cardLabels = [
         "Fascia d'età prevalente",
@@ -1007,18 +1010,20 @@
   function confirmDelete() {
     if (pendingDeleteKey) {
       const storageNames = pendingDeleteStorageName ? [pendingDeleteStorageName] : RECORD_STORAGE_NAMES;
+      let deleted = false;
       storageNames.forEach(storageName => {
         const storage = getStorage(storageName);
         if (!storage) return;
         try {
           storage.removeItem(pendingDeleteKey);
+          deleted = deleted || storage.getItem(pendingDeleteKey) === null;
         } catch (e) {
           // continue with other available storage
         }
       });
       closeDeleteModal();
       renderRecords();
-      showToast('🗑️ Scheda eliminata');
+      showToast(deleted ? '🗑️ Scheda eliminata' : 'Errore durante l’eliminazione', deleted ? undefined : 'var(--danger)');
     }
   }
 
