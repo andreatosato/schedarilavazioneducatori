@@ -674,7 +674,9 @@
       if (!storage) return;
       for (let i = 0; i < storage.length; i++) {
         const key = storage.key(i);
-        if (key && key.startsWith(HISTORY_RECORD_PREFIX) && !seenKeys.has(key)) {
+        const isRecord = key && key.startsWith(HISTORY_RECORD_PREFIX);
+        const alreadySeen = key && seenKeys.has(key);
+        if (isRecord && !alreadySeen) {
           try {
             const data = JSON.parse(storage.getItem(key));
             records.push({ key, data, storageName });
@@ -717,8 +719,13 @@
     return null;
   }
 
+  /**
+   * Converts a storage key into a unique DOM-safe ID suffix.
+   *
+   * @param {string} value The storage name and key to encode.
+   * @returns {string} A hexadecimal ID-safe representation.
+   */
   function makeDomId(value) {
-    // Hex-encode storage keys so generated DOM IDs are unique and safe.
     return Array.from(new TextEncoder().encode(value), byte => byte.toString(16).padStart(2, '0')).join('');
   }
 
@@ -852,7 +859,7 @@
 
     container.innerHTML = filtered.map(({ key, data: d, storageName }) => {
       const eduStr = joinListOrDefault(d.educatori, DEFAULT_TEXT.missing);
-      const safeCardId = makeDomId(storageName + '-' + key);
+      const safeCardId = makeDomId(`${storageName}-${key}`);
       const keyParam = encodeURIComponent(key);
       const cardLabels = [
         "Fascia d'età prevalente",
