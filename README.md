@@ -63,6 +63,46 @@ Per eseguire il Bicep sulla tua sottoscrizione servono:
 
 ### 1. Provisioning dell'infrastruttura (Bicep)
 
+#### Opzione A – Automatico da GitHub Actions (consigliata)
+
+Il workflow `.github/workflows/provision-infra.yml` esegue il Bicep al posto tuo
+(crea il resource group e tutta l'infrastruttura). Usa **OpenID Connect (OIDC)**,
+quindi **non viene salvata nessuna password/secret di lunga durata** nel repo.
+
+1. Crea un'app/service principal in Entra ID e assegnale il ruolo *Contributor*
+   sulla sottoscrizione (o sul resource group), poi configura una *federated credential*
+   per GitHub Actions:
+   ```bash
+   az ad sp create-for-rbac \
+     --name "github-strade-aperte" \
+     --role Contributor \
+     --scopes /subscriptions/<subscription-id>
+
+   az ad app federated-credential create \
+     --id <app-client-id> \
+     --parameters '{
+       "name": "github-main",
+       "issuer": "https://token.actions.githubusercontent.com",
+       "subject": "repo:andreatosato/schedarilavazioneducatori:ref:refs/heads/main",
+       "audiences": ["api://AzureADTokenExchange"]
+     }'
+   ```
+2. In GitHub aggiungi questi **secret** del repository
+   (**Settings → Secrets and variables → Actions**):
+
+   | Secret | Valore |
+   |--------|--------|
+   | `AZURE_CLIENT_ID` | Application (client) ID dell'app Entra ID |
+   | `AZURE_TENANT_ID` | Tenant ID di Entra ID |
+   | `AZURE_SUBSCRIPTION_ID` | ID della sottoscrizione Azure |
+
+   Opzionalmente puoi impostare le **variables** `AZURE_RESOURCE_GROUP` e `AZURE_LOCATION`
+   (default: `rg-strade-aperte` e `westeurope`).
+3. Avvia il workflow **Provision Azure Infrastructure** da *Actions → Run workflow*.
+   Al termine, l'output `appUrl` del deployment contiene l'URL pubblico dell'app.
+
+#### Opzione B – Manuale da Azure CLI
+
 ```bash
 az group create --name <rg-name> --location westeurope
 az deployment group create \
