@@ -779,7 +779,7 @@
 
   <button class="submit-btn" onclick="saveForm()">💾 Salva scheda</button>
   <button class="export-btn" onclick="exportText()">📤 Copia come testo (per WhatsApp/Email)</button>
-  <a class="history-btn" href="history.html">📋 Vedi storico schede (<span id="records-count">0</span>)</a>
+  <a class="history-btn" href="history.html" aria-label="Visualizza lo storico delle schede salvate">📋 Vedi storico schede</a>
 
   <div class="toast" id="toast">Scheda salvata!</div>
 </div>
@@ -788,11 +788,15 @@
   const counts = { ragazzi: 0, nuovi: 0 };
   const scales = { clima: 0, apertura: 0 };
   const RECORD_PREFIX = 'scheda_';
-  const RECORD_STORAGE_NAMES = ['localStorage', 'sessionStorage'];
-  const SAVE_MESSAGES = {
-    localStorage: '✅ Scheda salvata!',
-    sessionStorage: '✅ Scheda salvata per questa sessione!'
-  };
+  const SAVE_MESSAGE = '✅ Scheda salvata!';
+  const DATA_API_GRAPHQL_ENDPOINT = '/data-api/graphql';
+  const CREATE_SCHEDA_MUTATION = `
+    mutation CreateScheda($item: CreateSchedaInput!) {
+      createScheda(item: $item) {
+        id
+      }
+    }
+  `;
 
   function changeCount(field, delta) {
     counts[field] = Math.max(0, counts[field] + delta);
@@ -900,7 +904,7 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function saveForm() {
+  async function saveForm() {
     const formData = getFormData();
     if (!formData.data) {
       showToast('⚠️ Inserisci la data!', '#EA4335');
@@ -914,14 +918,14 @@
       showToast('⚠️ Seleziona almeno un educatore!', '#EA4335');
       return;
     }
-    const key = RECORD_PREFIX + (formData.data || 'nodata') + '_' + Date.now();
-    const savedStorage = saveRecord(key, formData);
-    if (!savedStorage) {
-      showToast('⚠️ Impossibile salvare: controlla le impostazioni del browser.', '#EA4335');
+    const key = RECORD_PREFIX + (formData.data || 'nodata') + '_' + createRecordIdSuffix();
+    const record = { ...formData, id: key };
+    const saved = await saveRecordToCosmos(record);
+    if (!saved) {
+      showToast('⚠️ Impossibile salvare. Riprova tra poco.', '#EA4335');
       return;
     }
-    updateRecordsCount();
-    showToast(SAVE_MESSAGES[savedStorage]);
+    showToast(SAVE_MESSAGE);
     setTimeout(resetForm, 1800);
   }
 
@@ -973,46 +977,45 @@
     setTimeout(() => toast.classList.remove('show'), 2500);
   }
 
-  function updateRecordsCount() {
-    const keys = new Set();
-    RECORD_STORAGE_NAMES.forEach(storageName => {
-      const storage = getStorage(storageName);
-      if (!storage) return;
-      for (let i = 0; i < storage.length; i++) {
-        const key = storage.key(i);
-        if (key && key.startsWith(RECORD_PREFIX)) keys.add(key);
-      }
-    });
-    document.getElementById('records-count').textContent = keys.size;
+  function createRecordIdSuffix() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID();
+    }
+    return Date.now() + '_' + Math.random().toString(36).slice(2);
   }
 
-  function getStorage(storageName) {
+  async function saveRecordToCosmos(record) {
+    if (typeof fetch !== 'function') return false;
+
     try {
-      return window[storageName];
-    } catch (e) {
-      return null;
-    }
-  }
-
-  function saveRecord(key, formData) {
-    const serialized = JSON.stringify(formData);
-    for (const storageName of RECORD_STORAGE_NAMES) {
-      const storage = getStorage(storageName);
-      if (!storage) continue;
-      try {
-        storage.setItem(key, serialized);
-        return storageName;
-      } catch (e) {
-        console.warn(`Errore salvataggio in ${storageName}`, e);
-        // try the next available storage
+      const response = await fetch(DATA_API_GRAPHQL_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: CREATE_SCHEDA_MUTATION,
+          variables: { item: record }
+        })
+      });
+      if (!response.ok) {
+        console.warn('Errore salvataggio su Cosmos DB', response.status, response.statusText);
+        return false;
       }
+
+      const result = await response.json();
+      if (result.errors && result.errors.length > 0) {
+        console.warn('Errore salvataggio su Cosmos DB', result.errors);
+        return false;
+      }
+      const created = result.data && result.data.createScheda;
+      return Boolean(created && typeof created.id === 'string' && created.id.length > 0);
+    } catch (e) {
+      console.warn('Errore salvataggio su Cosmos DB', e);
+      return false;
     }
-    return null;
   }
 
   // Initialize
   document.getElementById('data').valueAsDate = new Date();
-  updateRecordsCount();
 </script>
 
 </body>

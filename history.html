@@ -653,7 +653,7 @@
 
 <script>
   let pendingDeleteKey = null;
-  let pendingDeleteStorageName = null;
+  let allRecords = [];
   let lastDetailTrigger = null;
   const DEFAULT_TEXT = {
     missing: 'N/D',
@@ -663,61 +663,125 @@
   };
   const PLACEHOLDER_VALUES = Object.values(DEFAULT_TEXT);
   const DETAIL_MODAL_TITLE_PREFIX = 'Scheda completa del ';
-  const HISTORY_RECORD_PREFIX = 'scheda_';
-  const RECORD_STORAGE_NAMES = ['localStorage', 'sessionStorage'];
   const DOM_ID_ENCODER = new TextEncoder();
-
-  function getAllRecords() {
-    const records = [];
-    const seenKeys = new Set();
-    RECORD_STORAGE_NAMES.forEach(storageName => {
-      const storage = getStorage(storageName);
-      if (!storage) return;
-      for (let i = 0; i < storage.length; i++) {
-        const key = storage.key(i);
-        const isRecord = key && key.startsWith(HISTORY_RECORD_PREFIX);
-        const alreadySeen = key && seenKeys.has(key);
-        if (isRecord && !alreadySeen) {
-          try {
-            const data = JSON.parse(storage.getItem(key));
-            records.push({ key, data, storageName });
-            seenKeys.add(key);
-          } catch (e) {
-            // skip malformed entries
-          }
+  const DATA_API_GRAPHQL_ENDPOINT = '/data-api/graphql';
+  const HISTORY_PAGE_SIZE = 100;
+  const SCHEDA_FIELDS = `
+    id
+    data
+    oraInizio
+    oraFine
+    luogo
+    zona
+    educatori
+    tipo
+    ragazzi
+    fasce
+    genere
+    nuovi
+    clima
+    apertura
+    temi
+    criticita
+    criticitaNote
+    rete
+    note
+    urgenza
+  `;
+  const LIST_SCHEDE_QUERY = `
+    query ListSchede($after: String) {
+      schede(first: ${HISTORY_PAGE_SIZE}, after: $after) {
+        items {
+          ${SCHEDA_FIELDS}
         }
+        endCursor
+        hasNextPage
       }
-    });
-    records.sort((a, b) => {
-      if (a.data.data > b.data.data) return -1;
-      if (a.data.data < b.data.data) return 1;
-      return b.key.localeCompare(a.key);
-    });
+    }
+  `;
+  const DELETE_SCHEDA_MUTATION = `
+    mutation DeleteScheda($id: ID!) {
+      deleteScheda(id: $id) {
+        id
+      }
+    }
+  `;
+
+  async function loadRecords() {
+    const container = document.getElementById('records-list');
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">⏳</div>
+        <h2>Caricamento schede...</h2>
+        <p>Recupero dello storico da Cosmos DB.</p>
+      </div>`;
+
+    try {
+      const records = await fetchRecordsFromCosmos();
+      records.sort((a, b) => {
+        const dateA = a.data.data;
+        const dateB = b.data.data;
+        if (dateA > dateB) return -1;
+        if (dateA < dateB) return 1;
+        return b.key.localeCompare(a.key);
+      });
+      allRecords = records;
+      renderRecords();
+    } catch (e) {
+      console.warn('Errore caricamento schede da Cosmos DB', e);
+      const detail = e.message ? `<p>Dettaglio: ${escapeHtml(e.message)}</p>` : '';
+      renderStats([]);
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">⚠️</div>
+          <h2>Impossibile caricare le schede</h2>
+          <p>Riprova tra poco.</p>
+          ${detail}
+          <a href="index.html">➕ Nuova scheda</a>
+        </div>`;
+    }
+  }
+
+  async function fetchRecordsFromCosmos() {
+    const records = [];
+    let after = null;
+    let hasNextPage = true;
+
+    while (hasNextPage) {
+      const result = await executeGraphQL(LIST_SCHEDE_QUERY, { after });
+      const page = result.data?.schede;
+      const items = page?.items;
+      if (!Array.isArray(items)) break;
+
+      records.push(...items.map(data => ({ key: data.id, data })));
+      hasNextPage = Boolean(page.hasNextPage && page.endCursor);
+      after = page.endCursor;
+    }
+
     return records;
   }
 
-  function getStorage(storageName) {
-    try {
-      return window[storageName];
-    } catch (e) {
-      return null;
+  async function executeGraphQL(query, variables) {
+    const response = await fetch(DATA_API_GRAPHQL_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, variables })
+    });
+    if (!response.ok) {
+      throw new Error(`Data API Builder HTTP ${response.status}`);
     }
+
+    const result = await response.json();
+    if (result.errors && result.errors.length > 0) {
+      const operationName = query.match(/\b(?:query|mutation)\s+(\w+)/)?.[1] || 'sconosciuta';
+      throw new Error(`Operazione GraphQL non riuscita (${operationName}): ` + result.errors.map(error => error.message).join('; '));
+    }
+    return result;
   }
 
-  function getRecordByKey(key, preferredStorageName) {
-    const storageNames = preferredStorageName ? [preferredStorageName] : RECORD_STORAGE_NAMES;
-    for (const storageName of storageNames) {
-      const storage = getStorage(storageName);
-      if (!storage) continue;
-      try {
-        const value = storage.getItem(key);
-        if (value === null) continue;
-        return JSON.parse(value);
-      } catch (e) {
-        // try the next available storage
-      }
-    }
-    return null;
+  function getRecordByKey(key) {
+    const record = allRecords.find(item => item.key === key);
+    return record ? record.data : null;
   }
 
   /**
@@ -829,7 +893,7 @@
   function renderRecords() {
     const search = document.getElementById('search-input').value.toLowerCase();
     const filterLuogo = document.getElementById('filter-luogo').value;
-    const all = getAllRecords();
+    const all = allRecords;
 
     renderStats(all);
 
@@ -858,9 +922,9 @@
       return;
     }
 
-    container.innerHTML = filtered.map(({ key, data: d, storageName }) => {
+    container.innerHTML = filtered.map(({ key, data: d }) => {
       const eduStr = joinListOrDefault(d.educatori, DEFAULT_TEXT.missing);
-      const hexCardId = makeDomId(`${storageName}-${key}`);
+      const hexCardId = makeDomId(key);
       const keyParam = encodeURIComponent(key);
       const cardLabels = [
         "Fascia d'età prevalente",
@@ -899,9 +963,9 @@
             ${renderDetailSections(d, cardLabels)}
           </div>
           <div class="record-actions">
-            <button class="btn-detail" onclick="openDetailModal(decodeURIComponent('${keyParam}'), '${storageName}')">🔎 Scheda completa</button>
-            <button class="btn-copy" onclick="copyRecord(decodeURIComponent('${keyParam}'), '${storageName}')">📤 Copia testo</button>
-            <button class="btn-delete" onclick="askDelete(decodeURIComponent('${keyParam}'), '${storageName}')">🗑️</button>
+            <button class="btn-detail" onclick="openDetailModal(decodeURIComponent('${keyParam}'))">🔎 Scheda completa</button>
+            <button class="btn-copy" onclick="copyRecord(decodeURIComponent('${keyParam}'))">📤 Copia testo</button>
+            <button class="btn-delete" onclick="askDelete(decodeURIComponent('${keyParam}'))">🗑️</button>
           </div>
         </div>`;
     }).join('');
@@ -934,9 +998,9 @@
     return text;
   }
 
-  function openDetailModal(key, storageName) {
+  function openDetailModal(key) {
     try {
-      const data = getRecordByKey(key, storageName);
+      const data = getRecordByKey(key);
       if (!data) {
         showToast('Impossibile caricare la scheda');
         return;
@@ -981,9 +1045,9 @@
     }
   });
 
-  function copyRecord(key, storageName) {
+  function copyRecord(key) {
     try {
-      const data = getRecordByKey(key, storageName);
+      const data = getRecordByKey(key);
       if (!data) {
         showToast('Impossibile copiare la scheda');
         return;
@@ -1006,45 +1070,36 @@
     }
   }
 
-  function askDelete(key, storageName) {
+  function askDelete(key) {
     pendingDeleteKey = key;
-    pendingDeleteStorageName = storageName;
     document.getElementById('delete-modal').classList.add('open');
   }
 
   function closeDeleteModal() {
     pendingDeleteKey = null;
-    pendingDeleteStorageName = null;
     document.getElementById('delete-modal').classList.remove('open');
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (pendingDeleteKey) {
-      const storageNames = pendingDeleteStorageName ? [pendingDeleteStorageName] : RECORD_STORAGE_NAMES;
-      let deleted = false;
-      storageNames.forEach(storageName => {
-        const storage = getStorage(storageName);
-        if (!storage) return;
-        try {
-          const hadRecord = storage.getItem(pendingDeleteKey) !== null;
-          storage.removeItem(pendingDeleteKey);
-          deleted = deleted || hadRecord;
-        } catch (e) {
-          // continue with other available storage
-        }
-      });
-      closeDeleteModal();
-      renderRecords();
-      if (deleted) {
+      const keyToDelete = pendingDeleteKey;
+      try {
+        await executeGraphQL(DELETE_SCHEDA_MUTATION, { id: keyToDelete });
+        allRecords = allRecords.filter(record => record.key !== keyToDelete);
+        closeDeleteModal();
+        renderRecords();
         showToast('🗑️ Scheda eliminata');
-      } else {
-        showToast('Errore durante l’eliminazione', 'var(--danger)');
+      } catch (e) {
+        console.warn('Errore eliminazione scheda da Cosmos DB', e);
+        closeDeleteModal();
+        const message = e.message ? `Errore durante l’eliminazione: ${escapeHtml(e.message)}` : 'Errore durante l’eliminazione';
+        showToast(message, 'var(--danger)');
       }
     }
   }
 
   function exportAll() {
-    const records = getAllRecords();
+    const records = allRecords;
     if (records.length === 0) {
       showToast('Nessuna scheda da esportare');
       return;
@@ -1120,12 +1175,14 @@
     return 'StradeAperte2026';
   }
 
+  let historyAuthKey = null;
+
   function submitAuth() {
     const input = document.getElementById('auth-input');
     const errorEl = document.getElementById('auth-error');
     const expected = getExpectedPassword();
     if (input.value === expected) {
-      sessionStorage.setItem('historyAuth', getAuthDayKey());
+      historyAuthKey = getAuthDayKey();
       unlockHistory();
     } else {
       errorEl.textContent = 'Password errata. Riprova.';
@@ -1136,15 +1193,14 @@
 
   function unlockHistory() {
     document.getElementById('auth-overlay').classList.add('hidden');
-    renderRecords();
+    loadRecords();
   }
 
   function initAuth() {
-    if (sessionStorage.getItem('historyAuth') === getAuthDayKey()) {
+    if (historyAuthKey === getAuthDayKey()) {
       unlockHistory();
     } else {
-      // Clear any stale auth from a previous day
-      sessionStorage.removeItem('historyAuth');
+      historyAuthKey = null;
       const input = document.getElementById('auth-input');
       if (input) input.focus();
     }

@@ -10,7 +10,7 @@ App web statica per la rilevazione delle uscite educative di strada del progetto
 ## Funzionalità
 
 - **Compilazione scheda**: form completo per registrare ogni uscita (data, luogo, educatori, ragazzi incontrati, clima, criticità, rete territoriale, note).
-- **Persistenza dati**: le schede vengono salvate su **Azure Cosmos DB** (Free Tier) tramite la *database connection* integrata di Azure Static Web Apps, con fallback locale (`localStorage`/`sessionStorage`) del browser.
+- **Persistenza dati**: le schede vengono salvate esclusivamente su **Azure Cosmos DB** (Free Tier) tramite la *database connection* integrata di Azure Static Web Apps.
 - **Storico schede**: pagina dedicata per consultare, filtrare e gestire tutte le schede salvate, con statistiche aggregate.
 - **Esportazione CSV**: download di tutte le schede in formato CSV per l'analisi in Excel/Sheets.
 - **Copia testo**: genera un riepilogo formattato da incollare su WhatsApp o Email.
