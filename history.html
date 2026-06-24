@@ -706,7 +706,7 @@
       if (!storage) continue;
       try {
         const value = storage.getItem(key);
-        if (typeof value === 'string' && value.trim() !== '') return JSON.parse(value);
+        if (value !== null && value.trim() !== '') return JSON.parse(value);
       } catch (e) {
         // try the next available storage
       }
@@ -842,9 +842,9 @@
       return;
     }
 
-    container.innerHTML = filtered.map(({ key, data: d, storageName }, recordIndex) => {
+    container.innerHTML = filtered.map(({ key, data: d, storageName }) => {
       const eduStr = joinListOrDefault(d.educatori, DEFAULT_TEXT.missing);
-      const safeCardId = escapeHtml(storageName + '-' + recordIndex + '-' + key);
+      const safeCardId = escapeHtml(storageName + '-' + key);
       const keyParam = encodeURIComponent(key);
       const cardLabels = [
         "Fascia d'età prevalente",
