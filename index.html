@@ -788,7 +788,7 @@
   const counts = { ragazzi: 0, nuovi: 0 };
   const scales = { clima: 0, apertura: 0 };
   const RECORD_PREFIX = 'scheda_';
-  const SAVE_MESSAGE = '✅ Scheda salvata su Cosmos DB!';
+  const SAVE_MESSAGE = '✅ Scheda salvata!';
   const DATA_API_GRAPHQL_ENDPOINT = '/data-api/graphql';
   const CREATE_SCHEDA_MUTATION = `
     mutation CreateScheda($item: CreateSchedaInput!) {
@@ -922,7 +922,7 @@
     const record = { ...formData, id: key };
     const saved = await saveRecordToCosmos(record);
     if (!saved) {
-      showToast('⚠️ Impossibile salvare su Cosmos DB. Riprova tra poco.', '#EA4335');
+      showToast('⚠️ Impossibile salvare. Riprova tra poco.', '#EA4335');
       return;
     }
     showToast(SAVE_MESSAGE);
