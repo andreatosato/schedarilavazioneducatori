@@ -73,9 +73,9 @@ jobs:
           if missing:
               raise SystemExit(f"AZURE_CREDENTIALS is missing required field(s): {', '.join(missing)}")
 
-          with open(os.environ["CREDENTIALS_FILE"], "w", encoding="utf-8") as credentials_file:
+          with open(os.environ["CREDENTIALS_FILE"], "w", encoding="utf-8") as output_file:
               for variable, key in variables.items():
-                  print(f"{variable}={shlex.quote(credentials[key])}", file=credentials_file)
+                  print(f"{variable}={shlex.quote(credentials[key])}", file=output_file)
           PY
 
           . "$credentials_file"
