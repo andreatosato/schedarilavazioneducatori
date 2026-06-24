@@ -665,6 +665,7 @@
   const DETAIL_MODAL_TITLE_PREFIX = 'Scheda completa del ';
   const DOM_ID_ENCODER = new TextEncoder();
   const DATA_API_GRAPHQL_ENDPOINT = '/data-api/graphql';
+  const HISTORY_PAGE_SIZE = 100;
   const SCHEDA_FIELDS = `
     id
     data
@@ -688,11 +689,13 @@
     urgenza
   `;
   const LIST_SCHEDE_QUERY = `
-    query ListSchede {
-      schede(first: 1000) {
+    query ListSchede($after: String) {
+      schede(first: ${HISTORY_PAGE_SIZE}, after: $after) {
         items {
           ${SCHEDA_FIELDS}
         }
+        endCursor
+        hasNextPage
       }
     }
   `;
@@ -724,22 +727,36 @@
       renderRecords();
     } catch (e) {
       console.warn('Errore caricamento schede da Cosmos DB', e);
+      const detail = e.message ? `<p>Dettaglio: ${escapeHtml(e.message)}</p>` : '';
       renderStats([]);
       container.innerHTML = `
         <div class="empty-state">
           <div class="icon">⚠️</div>
           <h2>Impossibile caricare le schede</h2>
           <p>Riprova tra poco.</p>
+          ${detail}
           <a href="index.html">➕ Nuova scheda</a>
         </div>`;
     }
   }
 
   async function fetchRecordsFromCosmos() {
-    const result = await executeGraphQL(LIST_SCHEDE_QUERY);
-    const items = result.data?.schede?.items;
-    if (!Array.isArray(items)) return [];
-    return items.map(data => ({ key: data.id, data }));
+    const records = [];
+    let after = null;
+    let hasNextPage = true;
+
+    while (hasNextPage) {
+      const result = await executeGraphQL(LIST_SCHEDE_QUERY, { after });
+      const page = result.data?.schede;
+      const items = page?.items;
+      if (!Array.isArray(items)) break;
+
+      records.push(...items.map(data => ({ key: data.id, data })));
+      hasNextPage = Boolean(page.hasNextPage && page.endCursor);
+      after = page.endCursor;
+    }
+
+    return records;
   }
 
   async function executeGraphQL(query, variables) {
@@ -1072,7 +1089,7 @@
       } catch (e) {
         console.warn('Errore eliminazione scheda da Cosmos DB', e);
         closeDeleteModal();
-        showToast('Errore durante l’eliminazione', 'var(--danger)');
+        showToast(`Errore durante l’eliminazione${e.message ? ': ' + e.message : ''}`, 'var(--danger)');
       }
     }
   }
