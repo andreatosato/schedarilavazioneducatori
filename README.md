@@ -137,7 +137,11 @@ Al termine, gli output contengono i nomi di account, database e container Cosmos
    > Connect), quindi **non** serve più il secret `AZURE_CLIENT_SECRET`. Configura un
    > *federated credential* sull'app registration (Entra ID → *App registrations* →
    > la tua app → *Certificates & secrets* → *Federated credentials*) con scenario
-   > *GitHub Actions deploying Azure resources*, branch `main` di questo repository.
+   > *GitHub Actions deploying Azure resources*. Compila Organization/Repository con
+   > `andreatosato` / `schedarilavazioneducatori`, Entity type *Branch* e Branch `main`;
+   > il *Subject identifier* risultante è
+   > `repo:andreatosato/schedarilavazioneducatori:ref:refs/heads/main` (Issuer
+   > `https://token.actions.githubusercontent.com`, Audience `api://AzureADTokenExchange`).
    > Il login con password veniva bloccato dalle policy di Conditional Access del
    > tenant (`AADSTS53003`): l'autenticazione OIDC evita quel blocco. Se la policy
    > si applica anche alle workload identity, escludi la service principal dalla policy.
