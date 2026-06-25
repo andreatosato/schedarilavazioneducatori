@@ -39,10 +39,10 @@ class ConfigurationError extends Error {}
 function getContainer() {
   if (cachedContainer) return cachedContainer;
 
-  const connectionString = (process.env.COSMOS_CONNECTIONSTRING || '').trim();
+  const connectionString = (process.env.COSMOS || '').trim();
   if (!connectionString) {
     throw new ConfigurationError(
-      'COSMOS_CONNECTIONSTRING non configurata: impostala nelle Application settings della Static Web App.'
+      'COSMOS non configurata: impostala nelle Application settings della Static Web App.'
     );
   }
 

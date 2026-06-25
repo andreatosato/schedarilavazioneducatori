@@ -146,14 +146,14 @@ Al termine, gli output contengono i nomi di account, database e container Cosmos
    > tenant (`AADSTS53003`): l'autenticazione OIDC evita quel blocco. Se la policy
    > si applica anche alle workload identity, escludi la service principal dalla policy.
 3. Ad ogni push sul branch `main`, il workflow `azure-static-web-apps-black-sand-00abc5803.yml`
-   imposta **automaticamente** l'application setting `COSMOS_CONNECTIONSTRING` sulla Static Web App.
+   imposta **automaticamente** l'application setting `COSMOS` sulla Static Web App.
    Lo step *Azure login (OIDC)* esegue il login federato con la service principal,
    poi lo step *Configure Cosmos DB connection string* legge la connection string
    dall'account Cosmos (`black-sand-00abc5803-cosmos` nel resource group
    `rg-stradeaperte`) e la pubblica con `az staticwebapp appsettings set`. In questo modo
    la chiave è sempre presente sulla Static Web App senza salvarla nel repository.
 
-   > ℹ️ `COSMOS_CONNECTIONSTRING` è un nome valido per un'application setting di Static
+   > ℹ️ `COSMOS` è un nome valido per un'application setting di Static
    > Web Apps: i nomi possono contenere lettere, numeri e underscore (`_`). La
    > connection string contiene `=` e `;`: lo step la passa tra virgolette in un'unica
    > variabile, evitando gli errori di quoting (es. `App setting key ... is invalid`) che si
@@ -163,7 +163,7 @@ Al termine, gli output contengono i nomi di account, database e container Cosmos
    (vedi `staticWebAppSettings` in `infra/main.bicep`, `mode=deploy`). Se la Static Web App non
    esiste ancora al momento del provisioning, imposta `configureStaticWebAppSettings = false` in
    `infra/main.bicepparam` e rilancia dopo averla creata.
-5. Le Azure Functions in `api/` leggono `COSMOS_CONNECTIONSTRING` dalle impostazioni dell'app,
+5. Le Azure Functions in `api/` leggono `COSMOS` dalle impostazioni dell'app,
    senza salvare la connection string nel repository. Le pull request generano ambienti di
    staging temporanei che **non** ereditano le application settings di produzione.
 
@@ -173,10 +173,10 @@ Se la pagina **Storico** mostra un errore di accesso a Cosmos DB oppure il salva
 non va a buon fine, la causa quasi sempre è la connection string mancante o errata nelle
 **Application settings** della Static Web App.
 
-- **Errore `COSMOS_CONNECTIONSTRING non configurata` (HTTP 503):** l'app setting non è
+- **Errore `COSMOS non configurata` (HTTP 503):** l'app setting non è
   presente. Di norma è sufficiente eseguire un nuovo push su `main`: gli step
   *Azure login (OIDC)* e *Configure Cosmos DB connection string* del workflow impostano
-  `COSMOS_CONNECTIONSTRING` sulla Static Web App a partire dall'account Cosmos. Se il login
+  `COSMOS` sulla Static Web App a partire dall'account Cosmos. Se il login
   OIDC fallisce (federated credential mancante o service principal ancora bloccata da
   Conditional Access), lo step viene saltato con un warning: completa la configurazione del
   federated credential. In alternativa puoi (ri)lanciare il provisioning Bicep in
@@ -185,7 +185,7 @@ non va a buon fine, la causa quasi sempre è la connection string mancante o err
   az staticwebapp appsettings set \
     --name black-sand-00abc5803 \
     --resource-group rg-stradeaperte \
-    --setting-names "COSMOS_CONNECTIONSTRING=<connection-string>"
+    --setting-names "COSMOS=<connection-string>"
   ```
   La connection string si recupera dall'account Cosmos DB con:
   ```bash

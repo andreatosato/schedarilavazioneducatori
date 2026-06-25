@@ -7,7 +7,7 @@
       "container": "schede",
       "schema": "schede.gql"
     },
-    "connection-string": "@env('COSMOS_CONNECTIONSTRING')"
+    "connection-string": "@env('COSMOS')"
   },
   "runtime": {
     "graphql": {
