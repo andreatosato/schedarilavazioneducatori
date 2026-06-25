@@ -17,6 +17,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      id-token: write # Required for the OIDC (workload identity) Azure login
     steps:
       - uses: actions/checkout@v3
         with:
@@ -36,36 +37,41 @@ jobs:
           output_location: "." # Built app content directory - optional
           ###### End of Repository/Build Configurations ######
 
+      # Authenticate to Azure with OpenID Connect (workload identity federation)
+      # instead of a service-principal password. Password-based logins are rejected
+      # by the tenant Conditional Access policy (AADSTS53003), which is why the
+      # COSMOS_CONNECTIONSTRING update was previously skipped. The federated OIDC
+      # token is the supported way to let GitHub Actions update the setting and
+      # requires a federated credential on the app registration plus the
+      # `id-token: write` permission declared above.
+      - name: Azure login (OIDC)
+        id: azure_login
+        if: github.event_name == 'push'
+        continue-on-error: true
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       # Publish the Cosmos DB connection string as an application setting so the
       # Azure Functions API (and the Data API Builder) can read COSMOS_CONNECTIONSTRING
-      # at runtime. The setting is only applied to the production environment on
-      # pushes to main; pull-request staging environments do not inherit app settings.
+      # at runtime. COSMOS_CONNECTIONSTRING is a valid Static Web Apps setting name:
+      # SWA allows letters, numbers and underscores. The setting is only applied to the
+      # production environment on pushes to main; pull-request staging environments do
+      # not inherit app settings.
       - name: Configure Cosmos DB connection string
         if: github.event_name == 'push'
         env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           STATIC_WEB_APP_NAME: black-sand-00abc5803
           RESOURCE_GROUP: rg-stradeaperte
           COSMOS_ACCOUNT_NAME: black-sand-00abc5803-cosmos
         run: |
           set -euo pipefail
-          AZ_LOGIN_ERROR_LOG="$(mktemp)"
-          trap 'rm -f "$AZ_LOGIN_ERROR_LOG"' EXIT
-          if ! az login --service-principal \
-            --username "$AZURE_CLIENT_ID" \
-            --password "$AZURE_CLIENT_SECRET" \
-            --tenant "$AZURE_TENANT_ID" >/dev/null 2>"$AZ_LOGIN_ERROR_LOG"; then
-            if grep -q "AADSTS53003" "$AZ_LOGIN_ERROR_LOG" 2>/dev/null; then
-              echo "::warning::Skipping COSMOS_CONNECTIONSTRING update because Conditional Access blocked service principal login. Cosmos-backed API calls may fail until the setting is applied."
-              exit 0
-            fi
-            cat "$AZ_LOGIN_ERROR_LOG" >&2
-            exit 1
+          if [ "${{ steps.azure_login.outcome }}" != "success" ]; then
+            echo "::warning::Skipping COSMOS_CONNECTIONSTRING update because the Azure login step failed. Configure a federated credential (OIDC) on the service principal, or exclude it from the Conditional Access policy, so the setting can be applied. Cosmos-backed API calls may fail until then."
+            exit 0
           fi
-          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
           COSMOS_CONNECTIONSTRING=$(az cosmosdb keys list \
             --name "$COSMOS_ACCOUNT_NAME" \
             --resource-group "$RESOURCE_GROUP" \
