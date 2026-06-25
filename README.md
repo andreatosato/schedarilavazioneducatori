@@ -130,21 +130,31 @@ Al termine, gli output contengono i nomi di account, database e container Cosmos
    |--------|--------|
    | `AZURE_STATIC_WEB_APPS_API_TOKEN_BLACK_SAND_00ABC5803` | Deployment token della Static Web App |
    | `AZURE_CLIENT_ID` | Client ID del service principal usato per impostare la connection string |
-   | `AZURE_CLIENT_SECRET` | Client secret del service principal |
    | `AZURE_TENANT_ID` | Tenant ID del service principal |
    | `AZURE_SUBSCRIPTION_ID` | Subscription ID che contiene la Static Web App e Cosmos DB |
+
+   > 🔐 Lo step *Azure login (OIDC)* usa la **workload identity federation** (OpenID
+   > Connect), quindi **non** serve più il secret `AZURE_CLIENT_SECRET`. Configura un
+   > *federated credential* sull'app registration (Entra ID → *App registrations* →
+   > la tua app → *Certificates & secrets* → *Federated credentials*) con scenario
+   > *GitHub Actions deploying Azure resources*, branch `main` di questo repository.
+   > Il login con password veniva bloccato dalle policy di Conditional Access del
+   > tenant (`AADSTS53003`): l'autenticazione OIDC evita quel blocco. Se la policy
+   > si applica anche alle workload identity, escludi la service principal dalla policy.
 3. Ad ogni push sul branch `main`, il workflow `azure-static-web-apps-black-sand-00abc5803.yml`
    imposta **automaticamente** l'application setting `COSMOS_CONNECTIONSTRING` sulla Static Web App.
-   Lo step *Configure Cosmos DB connection string* esegue il login con il service principal,
-   legge la connection string dall'account Cosmos (`black-sand-00abc5803-cosmos` nel resource
-   group `rg-stradeaperte`) e la pubblica con `az staticwebapp appsettings set`. In questo modo
+   Lo step *Azure login (OIDC)* esegue il login federato con la service principal,
+   poi lo step *Configure Cosmos DB connection string* legge la connection string
+   dall'account Cosmos (`black-sand-00abc5803-cosmos` nel resource group
+   `rg-stradeaperte`) e la pubblica con `az staticwebapp appsettings set`. In questo modo
    la chiave è sempre presente sulla Static Web App senza salvarla nel repository.
 
-   > ℹ️ Il service principal usato dai secret `AZURE_*` deve avere i permessi per leggere le
-   > chiavi dell'account Cosmos e per scrivere le application settings della Static Web App.
-   > La connection string contiene `=` e `;`: lo step la passa tra virgolette in un'unica
+   > ℹ️ `COSMOS_CONNECTIONSTRING` è un nome valido per un'application setting di Static
+   > Web Apps: i nomi possono contenere lettere, numeri e underscore (`_`). La
+   > connection string contiene `=` e `;`: lo step la passa tra virgolette in un'unica
    > variabile, evitando gli errori di quoting (es. `App setting key ... is invalid`) che si
-   > verificano digitando il comando a mano.
+   > verificano digitando il comando a mano. Se il login Azure fallisce, lo step salta
+   > l'aggiornamento con un warning senza far fallire il deploy.
 4. In alternativa, la connection string può essere impostata dal Bicep durante il provisioning
    (vedi `staticWebAppSettings` in `infra/main.bicep`, `mode=deploy`). Se la Static Web App non
    esiste ancora al momento del provisioning, imposta `configureStaticWebAppSettings = false` in
@@ -160,11 +170,13 @@ non va a buon fine, la causa quasi sempre è la connection string mancante o err
 **Application settings** della Static Web App.
 
 - **Errore `COSMOS_CONNECTIONSTRING non configurata` (HTTP 503):** l'app setting non è
-  presente. Di norma è sufficiente eseguire un nuovo push su `main`: lo step
-  *Configure Cosmos DB connection string* del workflow imposta `COSMOS_CONNECTIONSTRING`
-  sulla Static Web App a partire dall'account Cosmos. In alternativa puoi (ri)lanciare il
-  provisioning Bicep in `mode=deploy` oppure impostarla manualmente (attenzione al quoting
-  della shell):
+  presente. Di norma è sufficiente eseguire un nuovo push su `main`: gli step
+  *Azure login (OIDC)* e *Configure Cosmos DB connection string* del workflow impostano
+  `COSMOS_CONNECTIONSTRING` sulla Static Web App a partire dall'account Cosmos. Se il login
+  OIDC fallisce (federated credential mancante o service principal ancora bloccata da
+  Conditional Access), lo step viene saltato con un warning: completa la configurazione del
+  federated credential. In alternativa puoi (ri)lanciare il provisioning Bicep in
+  `mode=deploy` oppure impostarla manualmente (attenzione al quoting della shell):
   ```bash
   az staticwebapp appsettings set \
     --name black-sand-00abc5803 \
