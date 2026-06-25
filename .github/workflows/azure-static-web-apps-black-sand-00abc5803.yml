@@ -54,13 +54,14 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # Publish the Cosmos DB connection string as an application setting so the
-      # Azure Functions API (and the Data API Builder) can read COSMOS
-      # at runtime. COSMOS is a valid Static Web Apps setting name:
-      # SWA allows letters, numbers and underscores. The setting is only applied to the
-      # production environment on pushes to main; pull-request staging environments do
-      # not inherit app settings.
-      - name: Configure Cosmos DB connection string
+      # Publish the Cosmos DB account endpoint as an application setting so the
+      # Azure Functions API can authenticate to Cosmos DB with Microsoft Entra
+      # ID (the Static Web App managed identity) instead of an account key. This
+      # is required when the Cosmos account disables local (key-based)
+      # authorization. The setting is only applied to the production environment
+      # on pushes to main; pull-request staging environments do not inherit app
+      # settings.
+      - name: Configure Cosmos DB endpoint
         if: github.event_name == 'push'
         env:
           STATIC_WEB_APP_NAME: black-sand-00abc5803
@@ -69,19 +70,18 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ steps.azure_login.outcome }}" != "success" ]; then
-            echo "::warning::Skipping COSMOS update because the Azure login step failed. Configure a federated credential (OIDC) on the service principal, or exclude it from the Conditional Access policy, so the setting can be applied. Cosmos-backed API calls may fail until then."
+            echo "::warning::Skipping COSMOS_ENDPOINT update because the Azure login step failed. Configure a federated credential (OIDC) on the service principal, or exclude it from the Conditional Access policy, so the setting can be applied. Cosmos-backed API calls may fail until then."
             exit 0
           fi
-          COSMOS=$(az cosmosdb keys list \
+          COSMOS_ENDPOINT=$(az cosmosdb show \
             --name "$COSMOS_ACCOUNT_NAME" \
             --resource-group "$RESOURCE_GROUP" \
-            --type connection-strings \
-            --query "connectionStrings[0].connectionString" -o tsv)
+            --query "documentEndpoint" -o tsv)
           az staticwebapp appsettings set \
             --name "$STATIC_WEB_APP_NAME" \
             --resource-group "$RESOURCE_GROUP" \
-            --setting-names "COSMOS=$COSMOS" >/dev/null
-          echo "COSMOS application setting updated on $STATIC_WEB_APP_NAME."
+            --setting-names "COSMOS_ENDPOINT=$COSMOS_ENDPOINT" >/dev/null
+          echo "COSMOS_ENDPOINT application setting updated on $STATIC_WEB_APP_NAME."
           az logout || true
 
   close_pull_request_job:

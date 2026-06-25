@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "220801366931099681"
+      "templateHash": "16071674146210610731"
     }
   },
   "parameters": {
@@ -30,6 +30,27 @@
         "description": "Enable the Cosmos DB lifetime Free Tier (1000 RU/s throughput and 25 GB storage free). Only one free-tier account is allowed per subscription, so set this to false if the subscription already has one."
       }
     },
+    "staticWebAppName": {
+      "type": "string",
+      "defaultValue": "[parameters('name')]",
+      "metadata": {
+        "description": "Name of the existing Static Web App whose application settings receive the Cosmos DB connection string. Defaults to the base name."
+      }
+    },
+    "configureStaticWebAppSettings": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "When true, sets the Cosmos DB application setting on the Static Web App so the Azure Functions API can reach Cosmos DB. Set to false if the Static Web App does not exist yet."
+      }
+    },
+    "assignCosmosDataRole": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "When true, grants the Static Web App system-assigned managed identity the Cosmos DB Built-in Data Contributor role so the API can use Microsoft Entra ID (AAD) authentication. Requires the system-assigned identity to be enabled on the Static Web App."
+      }
+    },
     "tags": {
       "type": "object",
       "defaultValue": {
@@ -43,7 +64,8 @@
   "variables": {
     "cosmosAccountName": "[toLower(format('{0}-cosmos', parameters('name')))]",
     "cosmosDatabaseName": "schede",
-    "cosmosContainerName": "schede"
+    "cosmosContainerName": "schede",
+    "cosmosDataContributorRoleId": "[format('{0}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002', resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName')))]"
   },
   "resources": [
     {
@@ -104,6 +126,32 @@
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', variables('cosmosAccountName'), variables('cosmosDatabaseName'))]"
       ]
+    },
+    {
+      "condition": "[parameters('configureStaticWebAppSettings')]",
+      "type": "Microsoft.Web/staticSites/config",
+      "apiVersion": "2024-04-01",
+      "name": "[format('{0}/{1}', parameters('staticWebAppName'), 'appsettings')]",
+      "properties": {
+        "COSMOS_ENDPOINT": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName')), '2024-11-15').documentEndpoint]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName'))]"
+      ]
+    },
+    {
+      "condition": "[parameters('assignCosmosDataRole')]",
+      "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments",
+      "apiVersion": "2024-11-15",
+      "name": "[format('{0}/{1}', variables('cosmosAccountName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName')), parameters('staticWebAppName'), '00000000-0000-0000-0000-000000000002'))]",
+      "properties": {
+        "roleDefinitionId": "[variables('cosmosDataContributorRoleId')]",
+        "principalId": "[reference(resourceId('Microsoft.Web/staticSites', parameters('staticWebAppName')), '2024-04-01', 'full').identity.principalId]",
+        "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName'))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName'))]"
+      ]
     }
   ],
   "outputs": {
@@ -127,6 +175,13 @@
         "description": "The name of the provisioned Cosmos DB SQL container."
       },
       "value": "[variables('cosmosContainerName')]"
+    },
+    "cosmosEndpoint": {
+      "type": "string",
+      "metadata": {
+        "description": "The Cosmos DB account endpoint to set as the COSMOS_ENDPOINT application setting."
+      },
+      "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName')), '2024-11-15').documentEndpoint]"
     }
   }
 }
