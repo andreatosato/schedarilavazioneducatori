@@ -33,7 +33,11 @@ jobs:
           ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
           # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
           app_location: "/" # App source code path
-          api_location: "api" # Azure Functions source code path
+          # The API is hosted on a standalone "bring your own" Function App
+          # (linked to this Static Web App), not as SWA-managed Functions, so no
+          # api_location is built/deployed here. The Function App is published in
+          # the "Deploy API to Function App" step below.
+          api_location: ""
           output_location: "." # Built app content directory - optional
           ###### End of Repository/Build Configurations ######
 
@@ -54,34 +58,32 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # Publish the Cosmos DB account endpoint as an application setting so the
-      # Azure Functions API can authenticate to Cosmos DB with Microsoft Entra
-      # ID (the Static Web App managed identity) instead of an account key. This
-      # is required when the Cosmos account disables local (key-based)
-      # authorization. The setting is only applied to the production environment
-      # on pushes to main; pull-request staging environments do not inherit app
-      # settings.
-      - name: Configure Cosmos DB endpoint
+      # Publish the API to the standalone "bring your own" Function App. A
+      # dedicated Function App (unlike the SWA managed Functions) supports
+      # managed identity, so it can authenticate to Cosmos DB with Microsoft
+      # Entra ID. COSMOS_ENDPOINT is set on the Function App by the Bicep
+      # template; here we only deploy the code. This runs only on pushes to
+      # main; pull-request staging environments are not updated.
+      - name: Deploy API to Function App
         if: github.event_name == 'push'
         env:
-          STATIC_WEB_APP_NAME: black-sand-00abc5803
+          FUNCTION_APP_NAME: black-sand-00abc5803-api
           RESOURCE_GROUP: rg-stradeaperte
-          COSMOS_ACCOUNT_NAME: black-sand-00abc5803-cosmos
         run: |
           set -euo pipefail
           if [ "${{ steps.azure_login.outcome }}" != "success" ]; then
-            echo "::warning::Skipping COSMOS_ENDPOINT update because the Azure login step failed. Configure a federated credential (OIDC) on the service principal, or exclude it from the Conditional Access policy, so the setting can be applied. Cosmos-backed API calls may fail until then."
+            echo "::warning::Skipping Function App deploy because the Azure login step failed. Configure a federated credential (OIDC) on the service principal so the API can be published. Cosmos-backed API calls may fail until then."
             exit 0
           fi
-          COSMOS_ENDPOINT=$(az cosmosdb show \
-            --name "$COSMOS_ACCOUNT_NAME" \
+          pushd api >/dev/null
+          npm ci --omit=dev
+          zip -r ../api.zip . -x "test/*" "*.test.js" >/dev/null
+          popd >/dev/null
+          az functionapp deployment source config-zip \
+            --name "$FUNCTION_APP_NAME" \
             --resource-group "$RESOURCE_GROUP" \
-            --query "documentEndpoint" -o tsv)
-          az staticwebapp appsettings set \
-            --name "$STATIC_WEB_APP_NAME" \
-            --resource-group "$RESOURCE_GROUP" \
-            --setting-names "COSMOS_ENDPOINT=$COSMOS_ENDPOINT" >/dev/null
-          echo "COSMOS_ENDPOINT application setting updated on $STATIC_WEB_APP_NAME."
+            --src api.zip >/dev/null
+          echo "API deployed to Function App $FUNCTION_APP_NAME."
           az logout || true
 
   close_pull_request_job:

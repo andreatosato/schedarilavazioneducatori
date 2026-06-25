@@ -32,31 +32,82 @@ const LIST_SCHEDE_QUERY = `SELECT ${ALLOWED_FIELDS.map(field => `c.${field}`).jo
 
 // Cached per warm Node.js Functions worker.
 let cachedContainer;
+// Tracks whether the cached container was built with Entra ID (AAD)
+// authentication, so a runtime auth failure can fall back to the
+// connection string without retrying the broken credential.
+let cachedContainerUsesAad = false;
 
 class ValidationError extends Error {}
 
 class ConfigurationError extends Error {}
 
-function createCosmosClient() {
-  // Prefer Microsoft Entra ID (AAD) authentication when an endpoint is
-  // configured. This is required when the Cosmos DB account disables local
-  // (key-based) authorization (`disableLocalAuth = true`), which makes the
-  // connection string return HTTP 401 "Local Authorization is disabled".
-  // DefaultAzureCredential uses the Static Web App system-assigned managed
-  // identity at runtime.
-  const endpoint = (process.env.COSMOS_ENDPOINT || '').trim();
+class AuthenticationError extends Error {}
+
+function readEndpoint() {
+  return (process.env.COSMOS_ENDPOINT || '').trim();
+}
+
+function readConnectionString() {
+  return (process.env.COSMOS || '').trim();
+}
+
+// Detects failures originating from the Entra ID credential chain (for
+// example when the Static Web App managed identity is unavailable and
+// DefaultAzureCredential falls through to the broken Cloud Shell path,
+// raising "Cannot read properties of undefined (reading 'expires_on')").
+function isCredentialError(error) {
+  if (!error) return false;
+  const name = error.name || '';
+  if (
+    name === 'AggregateAuthenticationError' ||
+    name === 'CredentialUnavailableError' ||
+    name === 'AuthenticationRequiredError'
+  ) {
+    return true;
+  }
+  if (Array.isArray(error.errors) && error.errors.some(isCredentialError)) {
+    return true;
+  }
+  return isCredentialError(error.cause);
+}
+
+function buildContainer(client) {
+  const databaseName = process.env.COSMOS_DATABASE_NAME || DEFAULT_DATABASE_NAME;
+  const containerName = process.env.COSMOS_CONTAINER_NAME || DEFAULT_CONTAINER_NAME;
+  return client.database(databaseName).container(containerName);
+}
+
+function createAadContainer(endpoint) {
+  // Microsoft Entra ID (AAD) authentication is required when the Cosmos DB
+  // account disables local (key-based) authorization (`disableLocalAuth = true`),
+  // which makes the connection string return HTTP 401 "Local Authorization is
+  // disabled". DefaultAzureCredential uses the Static Web App managed identity
+  // at runtime.
+  return buildContainer(new CosmosClient({ endpoint, aadCredentials: new DefaultAzureCredential() }));
+}
+
+function createConnectionStringContainer(connectionString) {
+  // Key-based authentication via the connection string, used when local
+  // authorization is enabled or as a fallback when AAD authentication is
+  // unavailable at runtime.
+  return buildContainer(new CosmosClient(connectionString));
+}
+
+function getContainer() {
+  if (cachedContainer) return cachedContainer;
+
+  const endpoint = readEndpoint();
   if (endpoint) {
-    return new CosmosClient({
-      endpoint,
-      aadCredentials: new DefaultAzureCredential()
-    });
+    cachedContainer = createAadContainer(endpoint);
+    cachedContainerUsesAad = true;
+    return cachedContainer;
   }
 
-  // Fallback to key-based authentication via the connection string for
-  // environments where local authorization is still enabled.
-  const connectionString = (process.env.COSMOS || '').trim();
+  const connectionString = readConnectionString();
   if (connectionString) {
-    return new CosmosClient(connectionString);
+    cachedContainer = createConnectionStringContainer(connectionString);
+    cachedContainerUsesAad = false;
+    return cachedContainer;
   }
 
   throw new ConfigurationError(
@@ -65,14 +116,32 @@ function createCosmosClient() {
   );
 }
 
-function getContainer() {
-  if (cachedContainer) return cachedContainer;
+// Runs a Cosmos operation, recovering from Entra ID credential failures by
+// retrying once with the connection string when one is configured. If no
+// fallback is available the error is surfaced as an AuthenticationError so the
+// HTTP layer can return a clear 503 instead of a generic 500.
+async function withContainer(operation) {
+  try {
+    return await operation(getContainer());
+  } catch (error) {
+    if (!isCredentialError(error) || !cachedContainerUsesAad) {
+      throw error;
+    }
 
-  const client = createCosmosClient();
-  const databaseName = process.env.COSMOS_DATABASE_NAME || DEFAULT_DATABASE_NAME;
-  const containerName = process.env.COSMOS_CONTAINER_NAME || DEFAULT_CONTAINER_NAME;
-  cachedContainer = client.database(databaseName).container(containerName);
-  return cachedContainer;
+    const connectionString = readConnectionString();
+    if (!connectionString) {
+      throw new AuthenticationError(
+        'Autenticazione a Cosmos DB con identità gestita (Entra ID) non riuscita: ' +
+          'verifica che la managed identity della Static Web App sia abilitata e ' +
+          'che le sia assegnato il ruolo dati su Cosmos DB, oppure configura la ' +
+          'connection string COSMOS come fallback.'
+      );
+    }
+
+    cachedContainer = createConnectionStringContainer(connectionString);
+    cachedContainerUsesAad = false;
+    return await operation(cachedContainer);
+  }
 }
 
 function normalizeScheda(input) {
@@ -105,9 +174,9 @@ async function listSchede(continuationToken) {
   const options = { maxItemCount: LIST_PAGE_SIZE };
   if (continuationToken) options.continuationToken = continuationToken;
 
-  const page = await getContainer()
-    .items.query(LIST_SCHEDE_QUERY, options)
-    .fetchNext();
+  const page = await withContainer(container =>
+    container.items.query(LIST_SCHEDE_QUERY, options).fetchNext()
+  );
   return {
     items: page.resources || [],
     continuationToken: page.continuationToken || null
@@ -116,7 +185,7 @@ async function listSchede(continuationToken) {
 
 async function createScheda(input) {
   const scheda = normalizeScheda(input);
-  const { resource } = await getContainer().items.create(scheda);
+  const { resource } = await withContainer(container => container.items.create(scheda));
   return resource;
 }
 
@@ -124,7 +193,7 @@ async function deleteScheda(id) {
   if (typeof id !== 'string' || id.trim().length === 0) {
     throw new ValidationError('Id scheda non valido');
   }
-  const { resource } = await getContainer().item(id, id).delete();
+  const { resource } = await withContainer(container => container.item(id, id).delete());
   return resource || { id };
 }
 
@@ -141,15 +210,20 @@ function toHttpError(error) {
   if (error instanceof ConfigurationError) {
     return { status: 503, body: { error: error.message } };
   }
+  if (error instanceof AuthenticationError) {
+    return { status: 503, body: { error: error.message } };
+  }
   return { status: 500, body: { error: 'Errore interno durante l’accesso a Cosmos DB' } };
 }
 
 module.exports = {
   ValidationError,
   ConfigurationError,
+  AuthenticationError,
   createScheda,
   deleteScheda,
   getContainer,
+  isCredentialError,
   listSchede,
   normalizeScheda,
   toHttpError
