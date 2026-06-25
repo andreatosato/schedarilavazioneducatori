@@ -30,6 +30,18 @@ param configureStaticWebAppSettings bool = true
 @description('When true, grants the Static Web App system-assigned managed identity the Cosmos DB Built-in Data Contributor role so the API can use Microsoft Entra ID (AAD) authentication. Requires the system-assigned identity to be enabled on the Static Web App.')
 param assignCosmosDataRole bool = true
 
+@description('When true, provisions a standalone Linux Azure Function App (with its own storage account and consumption plan) to host the schede API. Unlike the Static Web Apps managed Functions, a dedicated Function App fully supports managed identity, so Cosmos DB Entra ID authentication works at runtime.')
+param deployFunctionApp bool = true
+
+@description('Name of the standalone Function App that hosts the API. Defaults to "<name>-api".')
+param functionAppName string = '${name}-api'
+
+@description('When true, links the standalone Function App to the Static Web App as a "bring your own" backend so requests to /api/* are routed to it. Linked backends require the Static Web App Standard plan.')
+param linkFunctionAppToStaticWebApp bool = true
+
+@description('Location for the Function App, storage account and plan. Defaults to the resource group location.')
+param functionAppLocation string = resourceGroup().location
+
 @description('Tags applied to every resource.')
 param tags object = {
   project: 'strade-aperte'
@@ -97,7 +109,7 @@ resource cosmosContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/con
 // the Cosmos DB endpoint as an application setting and grant its managed
 // identity access to Cosmos DB data. Using the endpoint plus AAD avoids storing
 // any account key/connection string.
-resource staticWebApp 'Microsoft.Web/staticSites@2024-04-01' existing = if (configureStaticWebAppSettings || assignCosmosDataRole) {
+resource staticWebApp 'Microsoft.Web/staticSites@2024-04-01' existing = if (configureStaticWebAppSettings || assignCosmosDataRole || (deployFunctionApp && linkFunctionAppToStaticWebApp)) {
   name: staticWebAppName
 }
 
@@ -129,6 +141,46 @@ resource cosmosDataRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRole
   }
 }
 
+// --- Standalone "bring your own" Function App -------------------------------
+// The Static Web Apps managed Functions do not support managed identity for
+// outbound calls (the runtime only exposes the legacy MSI_ENDPOINT, so
+// @azure/identity misroutes to the Cloud Shell credential and fails with
+// "Cannot read properties of undefined (reading 'expires_on')"). A dedicated
+// Function App exposes a proper IMDS endpoint, so DefaultAzureCredential can
+// obtain a token and Cosmos DB Entra ID authentication works at runtime.
+module functionApp 'functionApp.bicep' = if (deployFunctionApp) {
+  name: 'functionAppDeployment'
+  params: {
+    functionAppName: functionAppName
+    location: functionAppLocation
+    cosmosEndpoint: cosmosAccount.properties.documentEndpoint
+    tags: tags
+  }
+}
+
+// Grant the Function App's managed identity read/write access to Cosmos DB data.
+resource cosmosDataRoleAssignmentFunctionApp 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = if (deployFunctionApp) {
+  parent: cosmosAccount
+  name: guid(cosmosAccount.id, functionAppName, '00000000-0000-0000-0000-000000000002')
+  properties: {
+    roleDefinitionId: cosmosDataContributorRoleId
+    principalId: functionApp!.outputs.principalId
+    scope: cosmosAccount.id
+  }
+}
+
+// Link the Function App to the Static Web App so requests to /api/* are routed
+// to it ("bring your own functions"). Linked backends require the Static Web
+// App Standard plan.
+resource linkedBackend 'Microsoft.Web/staticSites/linkedBackends@2024-04-01' = if (deployFunctionApp && linkFunctionAppToStaticWebApp) {
+  parent: staticWebApp
+  name: 'schede-api'
+  properties: {
+    backendResourceId: functionApp!.outputs.functionAppId
+    region: functionAppLocation
+  }
+}
+
 @description('The name of the provisioned Cosmos DB account.')
 output cosmosAccountName string = cosmosAccount.name
 
@@ -140,3 +192,6 @@ output cosmosContainerName string = cosmosContainer.name
 
 @description('The Cosmos DB account endpoint to set as the COSMOS_ENDPOINT application setting.')
 output cosmosEndpoint string = cosmosAccount.properties.documentEndpoint
+
+@description('The name of the standalone Function App that hosts the API (empty when not deployed).')
+output functionAppName string = deployFunctionApp ? functionApp!.outputs.functionAppName : ''

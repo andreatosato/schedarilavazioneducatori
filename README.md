@@ -10,7 +10,7 @@ App web statica per la rilevazione delle uscite educative di strada del progetto
 ## Funzionalità
 
 - **Compilazione scheda**: form completo per registrare ogni uscita (data, luogo, educatori, ragazzi incontrati, clima, criticità, rete territoriale, note).
-- **Persistenza dati**: le schede vengono salvate esclusivamente su **Azure Cosmos DB** (Free Tier) tramite le Azure Functions integrate in Azure Static Web Apps.
+- **Persistenza dati**: le schede vengono salvate esclusivamente su **Azure Cosmos DB** (Free Tier) tramite un Azure Function App dedicato collegato alla Static Web App.
 - **Storico schede**: pagina dedicata per consultare, filtrare e gestire tutte le schede salvate, con statistiche aggregate.
 - **Esportazione CSV**: download di tutte le schede in formato CSV per l'analisi in Excel/Sheets.
 - **Copia testo**: genera un riepilogo formattato da incollare su WhatsApp o Email.
@@ -22,8 +22,9 @@ App web statica per la rilevazione delle uscite educative di strada del progetto
 | `index.html` | Form di compilazione scheda |
 | `history.html` | Storico e gestione schede salvate |
 | `staticwebapp.config.json` | Configurazione di Azure Static Web Apps |
-| `api/` | Azure Functions HTTP che leggono/scrivono le schede su Cosmos DB |
-| `infra/main.bicep` | Template Bicep che provisiona solo Cosmos DB Free Tier |
+| `api/` | Azure Functions HTTP (Function App dedicato) che leggono/scrivono le schede su Cosmos DB |
+| `infra/main.bicep` | Template Bicep che provisiona Cosmos DB Free Tier e il Function App collegato |
+| `infra/functionApp.bicep` | Modulo Bicep che provisiona il Function App (storage, piano, identità) |
 | `infra/main.bicepparam` | Parametri di default per il deploy Bicep |
 | `.github/workflows/azure-static-web-apps-black-sand-00abc5803.yml` | Workflow di deploy automatico su Azure Static Web Apps |
 
@@ -31,12 +32,22 @@ App web statica per la rilevazione delle uscite educative di strada del progetto
 
 L'infrastruttura è mantenuta il più economica possibile:
 
-- **Azure Static Web Apps** (piano *Free*, gratuito) ospita il sito statico.
-- La pipeline di infrastruttura crea solo **Azure Cosmos DB for NoSQL** in *Free Tier* (1000 RU/s + 25 GB gratuiti a vita), con database e container `schede`.
-- Le **Azure Functions** integrate in Static Web Apps espongono solo gli endpoint `/api/schede`
-  al frontend e leggono/scrivono direttamente sul container Cosmos DB. L'autenticazione a
-  Cosmos DB usa **Microsoft Entra ID (AAD)** tramite la *managed identity* della Static Web App
-  (app setting `COSMOS_ENDPOINT`); in alternativa è supportata la connection string `COSMOS`.
+- **Azure Static Web Apps** ospita il sito statico. Per usare un backend Function App
+  collegato (*linked backend*) serve il piano **Standard**; il piano *Free* non supporta i
+  backend collegati.
+- La pipeline di infrastruttura crea **Azure Cosmos DB for NoSQL** in *Free Tier* (1000 RU/s + 25 GB gratuiti a vita), con database e container `schede`.
+- L'API è ospitata su un **Azure Function App dedicato** (Linux, Node 20, piano *Consumption*),
+  collegato alla Static Web App come *bring your own* backend: le richieste a `/api/*` vengono
+  instradate al Function App. A differenza delle Functions *integrate* in Static Web Apps, un
+  Function App dedicato **supporta la managed identity**, quindi l'autenticazione a Cosmos DB
+  con **Microsoft Entra ID (AAD)** funziona a runtime. L'app setting `COSMOS_ENDPOINT` è
+  impostato sul Function App dal Bicep; in alternativa è supportata la connection string `COSMOS`.
+
+> ⚠️ Le **Functions integrate** in Static Web Apps **non** supportano la managed identity per le
+> chiamate in uscita: il runtime espone solo la vecchia variabile `MSI_ENDPOINT`, così
+> `@azure/identity` ripiega sul credential di Cloud Shell e fallisce con
+> `Cannot read properties of undefined (reading 'expires_on')`. Per questo l'API è stata
+> migrata su un Function App dedicato.
 
 > ℹ️ Il *Free Tier* di Cosmos DB consente **un solo account gratuito per sottoscrizione**.
 > Se la sottoscrizione ne ha già uno, imposta `enableCosmosFreeTier = false` in
@@ -200,15 +211,17 @@ non va a buon fine, la causa quasi sempre è una configurazione mancante o errat
     --setting-names "COSMOS_ENDPOINT=$COSMOS_ENDPOINT"
   ```
 - **Errore `AggregateAuthenticationError: ChainedTokenCredential authentication failed`
-  (HTTP 503):** la *managed identity* della Static Web App non è disponibile a runtime,
-  quindi `DefaultAzureCredential` non riesce a ottenere un token per Cosmos DB (la catena
-  arriva fino al credential di Cloud Shell, che genera
-  `Cannot read properties of undefined (reading 'expires_on')`). L'API ora intercetta
-  questo errore e, se è configurata la connection string `COSMOS`, ripiega
+  (HTTP 503):** `DefaultAzureCredential` non riesce a ottenere un token per Cosmos DB (la
+  catena arriva fino al credential di Cloud Shell, che genera
+  `Cannot read properties of undefined (reading 'expires_on')`). È il sintomo tipico delle
+  **Functions integrate** in Static Web Apps, che non supportano la managed identity. La
+  soluzione adottata è ospitare l'API su un **Function App dedicato** collegato alla Static
+  Web App (vedi *Architettura su Azure*): lì la managed identity funziona e l'autenticazione
+  AAD a Cosmos DB ha successo. Verifica che il Function App `black-sand-00abc5803-api` abbia la
+  *system-assigned managed identity* abilitata, il ruolo dati su Cosmos DB e `COSMOS_ENDPOINT`
+  impostato. Nel frattempo, se è configurata la connection string `COSMOS`, l'API ripiega
   automaticamente sull'autenticazione a chiave; in caso contrario restituisce un 503 con
-  indicazioni. Per risolverlo: abilita la *managed identity* sulla Static Web App e
-  assegnale il ruolo dati su Cosmos DB (vedi sotto), oppure imposta la connection string
-  `COSMOS` come fallback.
+  indicazioni.
 - **Errore `Local Authorization is disabled. Use an AAD token...` (HTTP 401, substatus 5202):**
   l'account Cosmos ha disabilitato l'autenticazione locale (`disableLocalAuth = true`), quindi la
   connection string `COSMOS` viene rifiutata. Passa all'autenticazione AAD impostando

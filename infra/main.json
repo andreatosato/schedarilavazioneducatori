@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "16071674146210610731"
+      "templateHash": "8854593054492717762"
     }
   },
   "parameters": {
@@ -49,6 +49,34 @@
       "defaultValue": true,
       "metadata": {
         "description": "When true, grants the Static Web App system-assigned managed identity the Cosmos DB Built-in Data Contributor role so the API can use Microsoft Entra ID (AAD) authentication. Requires the system-assigned identity to be enabled on the Static Web App."
+      }
+    },
+    "deployFunctionApp": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "When true, provisions a standalone Linux Azure Function App (with its own storage account and consumption plan) to host the schede API. Unlike the Static Web Apps managed Functions, a dedicated Function App fully supports managed identity, so Cosmos DB Entra ID authentication works at runtime."
+      }
+    },
+    "functionAppName": {
+      "type": "string",
+      "defaultValue": "[format('{0}-api', parameters('name'))]",
+      "metadata": {
+        "description": "Name of the standalone Function App that hosts the API. Defaults to \"<name>-api\"."
+      }
+    },
+    "linkFunctionAppToStaticWebApp": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "When true, links the standalone Function App to the Static Web App as a \"bring your own\" backend so requests to /api/* are routed to it. Linked backends require the Static Web App Standard plan."
+      }
+    },
+    "functionAppLocation": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for the Function App, storage account and plan. Defaults to the resource group location."
       }
     },
     "tags": {
@@ -152,6 +180,215 @@
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName'))]"
       ]
+    },
+    {
+      "condition": "[parameters('deployFunctionApp')]",
+      "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments",
+      "apiVersion": "2024-11-15",
+      "name": "[format('{0}/{1}', variables('cosmosAccountName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName')), parameters('functionAppName'), '00000000-0000-0000-0000-000000000002'))]",
+      "properties": {
+        "roleDefinitionId": "[variables('cosmosDataContributorRoleId')]",
+        "principalId": "[reference(resourceId('Microsoft.Resources/deployments', 'functionAppDeployment'), '2025-04-01').outputs.principalId.value]",
+        "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName'))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName'))]",
+        "[resourceId('Microsoft.Resources/deployments', 'functionAppDeployment')]"
+      ]
+    },
+    {
+      "condition": "[and(parameters('deployFunctionApp'), parameters('linkFunctionAppToStaticWebApp'))]",
+      "type": "Microsoft.Web/staticSites/linkedBackends",
+      "apiVersion": "2024-04-01",
+      "name": "[format('{0}/{1}', parameters('staticWebAppName'), 'schede-api')]",
+      "properties": {
+        "backendResourceId": "[reference(resourceId('Microsoft.Resources/deployments', 'functionAppDeployment'), '2025-04-01').outputs.functionAppId.value]",
+        "region": "[parameters('functionAppLocation')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'functionAppDeployment')]"
+      ]
+    },
+    {
+      "condition": "[parameters('deployFunctionApp')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "functionAppDeployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "functionAppName": {
+            "value": "[parameters('functionAppName')]"
+          },
+          "location": {
+            "value": "[parameters('functionAppLocation')]"
+          },
+          "cosmosEndpoint": {
+            "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName')), '2024-11-15').documentEndpoint]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.44.1.10279",
+              "templateHash": "17632659955022519510"
+            }
+          },
+          "parameters": {
+            "functionAppName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Function App that hosts the API."
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Location for the Function App, storage account and plan."
+              }
+            },
+            "cosmosEndpoint": {
+              "type": "string",
+              "metadata": {
+                "description": "Cosmos DB account endpoint to expose as the COSMOS_ENDPOINT app setting."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Tags applied to every resource."
+              }
+            }
+          },
+          "variables": {
+            "storageAccountName": "[toLower(format('fn{0}', uniqueString(resourceGroup().id, parameters('functionAppName'))))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Storage/storageAccounts",
+              "apiVersion": "2023-05-01",
+              "name": "[variables('storageAccountName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "Standard_LRS"
+              },
+              "kind": "StorageV2",
+              "properties": {
+                "minimumTlsVersion": "TLS1_2",
+                "allowBlobPublicAccess": false,
+                "supportsHttpsTrafficOnly": true
+              }
+            },
+            {
+              "type": "Microsoft.Web/serverfarms",
+              "apiVersion": "2023-12-01",
+              "name": "[format('{0}-plan', parameters('functionAppName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "linux",
+              "sku": {
+                "name": "Y1",
+                "tier": "Dynamic"
+              },
+              "properties": {
+                "reserved": true
+              }
+            },
+            {
+              "type": "Microsoft.Web/sites",
+              "apiVersion": "2023-12-01",
+              "name": "[parameters('functionAppName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "functionapp,linux",
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', format('{0}-plan', parameters('functionAppName')))]",
+                "reserved": true,
+                "httpsOnly": true,
+                "siteConfig": {
+                  "linuxFxVersion": "Node|20",
+                  "ftpsState": "Disabled",
+                  "minTlsVersion": "1.2",
+                  "appSettings": [
+                    {
+                      "name": "AzureWebJobsStorage",
+                      "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-05-01').keys[0].value)]"
+                    },
+                    {
+                      "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+                      "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-05-01').keys[0].value)]"
+                    },
+                    {
+                      "name": "WEBSITE_CONTENTSHARE",
+                      "value": "[toLower(parameters('functionAppName'))]"
+                    },
+                    {
+                      "name": "FUNCTIONS_EXTENSION_VERSION",
+                      "value": "~4"
+                    },
+                    {
+                      "name": "FUNCTIONS_WORKER_RUNTIME",
+                      "value": "node"
+                    },
+                    {
+                      "name": "WEBSITE_NODE_DEFAULT_VERSION",
+                      "value": "~20"
+                    },
+                    {
+                      "name": "COSMOS_ENDPOINT",
+                      "value": "[parameters('cosmosEndpoint')]"
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', format('{0}-plan', parameters('functionAppName')))]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "functionAppId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the Function App (used to link it as a SWA backend)."
+              },
+              "value": "[resourceId('Microsoft.Web/sites', parameters('functionAppName'))]"
+            },
+            "functionAppName": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the Function App."
+              },
+              "value": "[parameters('functionAppName')]"
+            },
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "The principal ID of the Function App system-assigned managed identity."
+              },
+              "value": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2023-12-01', 'full').identity.principalId]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName'))]"
+      ]
     }
   ],
   "outputs": {
@@ -182,6 +419,13 @@
         "description": "The Cosmos DB account endpoint to set as the COSMOS_ENDPOINT application setting."
       },
       "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName')), '2024-11-15').documentEndpoint]"
+    },
+    "functionAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the standalone Function App that hosts the API (empty when not deployed)."
+      },
+      "value": "[if(parameters('deployFunctionApp'), reference(resourceId('Microsoft.Resources/deployments', 'functionAppDeployment'), '2025-04-01').outputs.functionAppName.value, '')]"
     }
   }
 }
