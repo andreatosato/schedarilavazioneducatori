@@ -24,7 +24,7 @@ param enableCosmosFreeTier bool = true
 @description('Name of the existing Static Web App whose application settings receive the Cosmos DB connection string. Defaults to the base name.')
 param staticWebAppName string = name
 
-@description('When true, sets the COSMOS_CONNECTIONSTRING application setting on the Static Web App so the Azure Functions API can reach Cosmos DB. Set to false if the Static Web App does not exist yet.')
+@description('When true, sets the COSMOS application setting on the Static Web App so the Azure Functions API can reach Cosmos DB. Set to false if the Static Web App does not exist yet.')
 param configureStaticWebAppSettings bool = true
 
 @description('Tags applied to every resource.')
@@ -101,12 +101,12 @@ resource staticWebApp 'Microsoft.Web/staticSites@2024-04-01' existing = if (conf
 }
 
 // Setting the 'appsettings' config replaces the full set of application
-// settings, so COSMOS_CONNECTIONSTRING is the single value managed here.
+// settings, so COSMOS is the single value managed here.
 resource staticWebAppSettings 'Microsoft.Web/staticSites/config@2024-04-01' = if (configureStaticWebAppSettings) {
   parent: staticWebApp
   name: 'appsettings'
   properties: {
-    COSMOS_CONNECTIONSTRING: cosmosAccount.listConnectionStrings().connectionStrings[0].connectionString
+    COSMOS: cosmosAccount.listConnectionStrings().connectionStrings[0].connectionString
   }
 }
 

@@ -40,7 +40,7 @@ jobs:
       # Authenticate to Azure with OpenID Connect (workload identity federation)
       # instead of a service-principal password. Password-based logins are rejected
       # by the tenant Conditional Access policy (AADSTS53003), which is why the
-      # COSMOS_CONNECTIONSTRING update was previously skipped. The federated OIDC
+      # COSMOS update was previously skipped. The federated OIDC
       # token is the supported way to let GitHub Actions update the setting and
       # requires a federated credential on the app registration plus the
       # `id-token: write` permission declared above.
@@ -55,8 +55,8 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       # Publish the Cosmos DB connection string as an application setting so the
-      # Azure Functions API (and the Data API Builder) can read COSMOS_CONNECTIONSTRING
-      # at runtime. COSMOS_CONNECTIONSTRING is a valid Static Web Apps setting name:
+      # Azure Functions API (and the Data API Builder) can read COSMOS
+      # at runtime. COSMOS is a valid Static Web Apps setting name:
       # SWA allows letters, numbers and underscores. The setting is only applied to the
       # production environment on pushes to main; pull-request staging environments do
       # not inherit app settings.
@@ -69,10 +69,10 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ steps.azure_login.outcome }}" != "success" ]; then
-            echo "::warning::Skipping COSMOS_CONNECTIONSTRING update because the Azure login step failed. Configure a federated credential (OIDC) on the service principal, or exclude it from the Conditional Access policy, so the setting can be applied. Cosmos-backed API calls may fail until then."
+            echo "::warning::Skipping COSMOS update because the Azure login step failed. Configure a federated credential (OIDC) on the service principal, or exclude it from the Conditional Access policy, so the setting can be applied. Cosmos-backed API calls may fail until then."
             exit 0
           fi
-          COSMOS_CONNECTIONSTRING=$(az cosmosdb keys list \
+          COSMOS=$(az cosmosdb keys list \
             --name "$COSMOS_ACCOUNT_NAME" \
             --resource-group "$RESOURCE_GROUP" \
             --type connection-strings \
@@ -80,8 +80,8 @@ jobs:
           az staticwebapp appsettings set \
             --name "$STATIC_WEB_APP_NAME" \
             --resource-group "$RESOURCE_GROUP" \
-            --setting-names "COSMOS_CONNECTIONSTRING=$COSMOS_CONNECTIONSTRING" >/dev/null
-          echo "COSMOS_CONNECTIONSTRING application setting updated on $STATIC_WEB_APP_NAME."
+            --setting-names "COSMOS=$COSMOS" >/dev/null
+          echo "COSMOS application setting updated on $STATIC_WEB_APP_NAME."
           az logout || true
 
   close_pull_request_job:
