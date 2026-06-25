@@ -55,26 +55,54 @@ test('toHttpError maps a missing connection string to HTTP 503', () => {
   });
 });
 
-test('getContainer throws a ConfigurationError when the connection string is missing', () => {
-  const previous = process.env.COSMOS;
+test('getContainer throws a ConfigurationError when no auth is configured', () => {
+  const previousCs = process.env.COSMOS;
+  const previousEndpoint = process.env.COSMOS_ENDPOINT;
   delete process.env.COSMOS;
+  delete process.env.COSMOS_ENDPOINT;
   try {
     const { getContainer } = require('../shared/schedeStore');
     assert.throws(() => getContainer(), ConfigurationError);
   } finally {
-    if (previous === undefined) delete process.env.COSMOS;
-    else process.env.COSMOS = previous;
+    if (previousCs === undefined) delete process.env.COSMOS;
+    else process.env.COSMOS = previousCs;
+    if (previousEndpoint === undefined) delete process.env.COSMOS_ENDPOINT;
+    else process.env.COSMOS_ENDPOINT = previousEndpoint;
   }
 });
 
-test('getContainer treats a whitespace-only connection string as missing', () => {
-  const previous = process.env.COSMOS;
+test('getContainer treats whitespace-only auth values as missing', () => {
+  const previousCs = process.env.COSMOS;
+  const previousEndpoint = process.env.COSMOS_ENDPOINT;
   process.env.COSMOS = '   ';
+  process.env.COSMOS_ENDPOINT = '   ';
   try {
     const { getContainer } = require('../shared/schedeStore');
     assert.throws(() => getContainer(), ConfigurationError);
   } finally {
-    if (previous === undefined) delete process.env.COSMOS;
-    else process.env.COSMOS = previous;
+    if (previousCs === undefined) delete process.env.COSMOS;
+    else process.env.COSMOS = previousCs;
+    if (previousEndpoint === undefined) delete process.env.COSMOS_ENDPOINT;
+    else process.env.COSMOS_ENDPOINT = previousEndpoint;
+  }
+});
+
+test('getContainer uses Entra ID auth when COSMOS_ENDPOINT is set', () => {
+  const previousCs = process.env.COSMOS;
+  const previousEndpoint = process.env.COSMOS_ENDPOINT;
+  // No connection string is provided, so this only succeeds via the AAD path.
+  delete process.env.COSMOS;
+  process.env.COSMOS_ENDPOINT = 'https://example.documents.azure.com:443/';
+  try {
+    delete require.cache[require.resolve('../shared/schedeStore')];
+    const { getContainer } = require('../shared/schedeStore');
+    const container = getContainer();
+    assert.equal(typeof container.items.query, 'function');
+  } finally {
+    delete require.cache[require.resolve('../shared/schedeStore')];
+    if (previousCs === undefined) delete process.env.COSMOS;
+    else process.env.COSMOS = previousCs;
+    if (previousEndpoint === undefined) delete process.env.COSMOS_ENDPOINT;
+    else process.env.COSMOS_ENDPOINT = previousEndpoint;
   }
 });

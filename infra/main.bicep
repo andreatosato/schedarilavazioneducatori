@@ -24,8 +24,11 @@ param enableCosmosFreeTier bool = true
 @description('Name of the existing Static Web App whose application settings receive the Cosmos DB connection string. Defaults to the base name.')
 param staticWebAppName string = name
 
-@description('When true, sets the COSMOS application setting on the Static Web App so the Azure Functions API can reach Cosmos DB. Set to false if the Static Web App does not exist yet.')
+@description('When true, sets the Cosmos DB application setting on the Static Web App so the Azure Functions API can reach Cosmos DB. Set to false if the Static Web App does not exist yet.')
 param configureStaticWebAppSettings bool = true
+
+@description('When true, grants the Static Web App system-assigned managed identity the Cosmos DB Built-in Data Contributor role so the API can use Microsoft Entra ID (AAD) authentication. Requires the system-assigned identity to be enabled on the Static Web App.')
+param assignCosmosDataRole bool = true
 
 @description('Tags applied to every resource.')
 param tags object = {
@@ -91,22 +94,38 @@ resource cosmosContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/con
 }
 
 // Reference the already-deployed Static Web App so the deployment can publish
-// the Cosmos DB connection string as an application setting. This avoids the
-// error-prone manual `az staticwebapp appsettings set` command, where unquoted
-// `=` and `;` in the connection string make the shell split the value into
-// extra tokens that are parsed as invalid setting keys
-// (e.g. `App setting key ... is invalid`).
-resource staticWebApp 'Microsoft.Web/staticSites@2024-04-01' existing = if (configureStaticWebAppSettings) {
+// the Cosmos DB endpoint as an application setting and grant its managed
+// identity access to Cosmos DB data. Using the endpoint plus AAD avoids storing
+// any account key/connection string.
+resource staticWebApp 'Microsoft.Web/staticSites@2024-04-01' existing = if (configureStaticWebAppSettings || assignCosmosDataRole) {
   name: staticWebAppName
 }
 
 // Setting the 'appsettings' config replaces the full set of application
-// settings, so COSMOS is the single value managed here.
+// settings. COSMOS_ENDPOINT lets the Azure Functions API authenticate to
+// Cosmos DB with Microsoft Entra ID (the Static Web App managed identity)
+// instead of an account key, which is required when the account disables
+// local (key-based) authorization (`disableLocalAuth = true`).
 resource staticWebAppSettings 'Microsoft.Web/staticSites/config@2024-04-01' = if (configureStaticWebAppSettings) {
   parent: staticWebApp
   name: 'appsettings'
   properties: {
-    COSMOS: cosmosAccount.listConnectionStrings().connectionStrings[0].connectionString
+    COSMOS_ENDPOINT: cosmosAccount.properties.documentEndpoint
+  }
+}
+
+// Built-in "Cosmos DB Built-in Data Contributor" data-plane role. This is a
+// Cosmos DB SQL role (not an Azure RBAC role) and grants read/write access to
+// the account data, which is what the Functions API needs.
+var cosmosDataContributorRoleId = '${cosmosAccount.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002'
+
+resource cosmosDataRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = if (assignCosmosDataRole) {
+  parent: cosmosAccount
+  name: guid(cosmosAccount.id, staticWebAppName, '00000000-0000-0000-0000-000000000002')
+  properties: {
+    roleDefinitionId: cosmosDataContributorRoleId
+    principalId: staticWebApp.identity.principalId
+    scope: cosmosAccount.id
   }
 }
 
@@ -118,3 +137,6 @@ output cosmosDatabaseName string = cosmosDatabase.name
 
 @description('The name of the provisioned Cosmos DB SQL container.')
 output cosmosContainerName string = cosmosContainer.name
+
+@description('The Cosmos DB account endpoint to set as the COSMOS_ENDPOINT application setting.')
+output cosmosEndpoint string = cosmosAccount.properties.documentEndpoint

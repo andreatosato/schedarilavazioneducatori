@@ -1,4 +1,5 @@
 const { CosmosClient } = require('@azure/cosmos');
+const { DefaultAzureCredential } = require('@azure/identity');
 
 const DEFAULT_DATABASE_NAME = 'schede';
 const DEFAULT_CONTAINER_NAME = 'schede';
@@ -36,17 +37,38 @@ class ValidationError extends Error {}
 
 class ConfigurationError extends Error {}
 
+function createCosmosClient() {
+  // Prefer Microsoft Entra ID (AAD) authentication when an endpoint is
+  // configured. This is required when the Cosmos DB account disables local
+  // (key-based) authorization (`disableLocalAuth = true`), which makes the
+  // connection string return HTTP 401 "Local Authorization is disabled".
+  // DefaultAzureCredential uses the Static Web App system-assigned managed
+  // identity at runtime.
+  const endpoint = (process.env.COSMOS_ENDPOINT || '').trim();
+  if (endpoint) {
+    return new CosmosClient({
+      endpoint,
+      aadCredentials: new DefaultAzureCredential()
+    });
+  }
+
+  // Fallback to key-based authentication via the connection string for
+  // environments where local authorization is still enabled.
+  const connectionString = (process.env.COSMOS || '').trim();
+  if (connectionString) {
+    return new CosmosClient(connectionString);
+  }
+
+  throw new ConfigurationError(
+    'Cosmos DB non configurata: imposta COSMOS_ENDPOINT (autenticazione Entra ID) ' +
+      'oppure COSMOS (connection string) nelle Application settings della Static Web App.'
+  );
+}
+
 function getContainer() {
   if (cachedContainer) return cachedContainer;
 
-  const connectionString = (process.env.COSMOS || '').trim();
-  if (!connectionString) {
-    throw new ConfigurationError(
-      'COSMOS non configurata: impostala nelle Application settings della Static Web App.'
-    );
-  }
-
-  const client = new CosmosClient(connectionString);
+  const client = createCosmosClient();
   const databaseName = process.env.COSMOS_DATABASE_NAME || DEFAULT_DATABASE_NAME;
   const containerName = process.env.COSMOS_CONTAINER_NAME || DEFAULT_CONTAINER_NAME;
   cachedContainer = client.database(databaseName).container(containerName);
