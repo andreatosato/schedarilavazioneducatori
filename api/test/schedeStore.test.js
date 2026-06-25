@@ -1,6 +1,12 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const { normalizeScheda, toHttpError, ConfigurationError } = require('../shared/schedeStore');
+const {
+  normalizeScheda,
+  toHttpError,
+  ConfigurationError,
+  AuthenticationError,
+  isCredentialError
+} = require('../shared/schedeStore');
 
 test('normalizeScheda keeps only expected fields and coerces values', () => {
   const scheda = normalizeScheda({
@@ -53,6 +59,42 @@ test('toHttpError maps a missing connection string to HTTP 503', () => {
     status: 503,
     body: { error: 'COSMOS non configurata' }
   });
+});
+
+test('toHttpError maps an Entra ID authentication failure to HTTP 503', () => {
+  const error = new AuthenticationError('Managed identity non disponibile');
+  assert.deepEqual(toHttpError(error), {
+    status: 503,
+    body: { error: 'Managed identity non disponibile' }
+  });
+});
+
+test('isCredentialError detects ChainedTokenCredential failures', () => {
+  const aggregate = new Error('ChainedTokenCredential authentication failed.');
+  aggregate.name = 'AggregateAuthenticationError';
+  aggregate.errors = [
+    Object.assign(new Error('EnvironmentCredential is unavailable.'), {
+      name: 'CredentialUnavailableError'
+    })
+  ];
+  assert.equal(isCredentialError(aggregate), true);
+});
+
+test('isCredentialError detects the Cloud Shell expires_on failure via cause', () => {
+  const credentialError = Object.assign(
+    new Error('ManagedIdentityCredential: Authentication failed.'),
+    {
+      name: 'CredentialUnavailableError',
+      cause: new TypeError("Cannot read properties of undefined (reading 'expires_on')")
+    }
+  );
+  assert.equal(isCredentialError(credentialError), true);
+});
+
+test('isCredentialError ignores unrelated Cosmos errors', () => {
+  assert.equal(isCredentialError({ code: 404 }), false);
+  assert.equal(isCredentialError(new Error('Request rate is large')), false);
+  assert.equal(isCredentialError(null), false);
 });
 
 test('getContainer throws a ConfigurationError when no auth is configured', () => {

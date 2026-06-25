@@ -199,6 +199,16 @@ non va a buon fine, la causa quasi sempre è una configurazione mancante o errat
     --resource-group rg-stradeaperte \
     --setting-names "COSMOS_ENDPOINT=$COSMOS_ENDPOINT"
   ```
+- **Errore `AggregateAuthenticationError: ChainedTokenCredential authentication failed`
+  (HTTP 503):** la *managed identity* della Static Web App non è disponibile a runtime,
+  quindi `DefaultAzureCredential` non riesce a ottenere un token per Cosmos DB (la catena
+  arriva fino al credential di Cloud Shell, che genera
+  `Cannot read properties of undefined (reading 'expires_on')`). L'API ora intercetta
+  questo errore e, se è configurata la connection string `COSMOS`, ripiega
+  automaticamente sull'autenticazione a chiave; in caso contrario restituisce un 503 con
+  indicazioni. Per risolverlo: abilita la *managed identity* sulla Static Web App e
+  assegnale il ruolo dati su Cosmos DB (vedi sotto), oppure imposta la connection string
+  `COSMOS` come fallback.
 - **Errore `Local Authorization is disabled. Use an AAD token...` (HTTP 401, substatus 5202):**
   l'account Cosmos ha disabilitato l'autenticazione locale (`disableLocalAuth = true`), quindi la
   connection string `COSMOS` viene rifiutata. Passa all'autenticazione AAD impostando
