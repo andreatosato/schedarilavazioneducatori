@@ -1,6 +1,6 @@
 {
   "name": "strade-aperte-api",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Azure Functions API per Strade Aperte",
   "scripts": {
     "test": "node --test"
