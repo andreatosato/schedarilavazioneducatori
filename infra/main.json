@@ -4,16 +4,23 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.44.1.10279",
-      "templateHash": "8854593054492717762"
+      "version": "0.37.4.10188",
+      "templateHash": "1054922003437975077"
     }
   },
   "parameters": {
     "name": {
       "type": "string",
-      "defaultValue": "black-sand-00abc5803",
+      "defaultValue": "stradeaperte",
       "metadata": {
         "description": "Base name used to derive the resource names."
+      }
+    },
+    "cosmosAccountName": {
+      "type": "string",
+      "defaultValue": "[parameters('name')]",
+      "metadata": {
+        "description": "Name of the Cosmos DB account. Defaults to the base name so the account can match the Static Web App resource name."
       }
     },
     "cosmosLocation": {
@@ -39,16 +46,16 @@
     },
     "configureStaticWebAppSettings": {
       "type": "bool",
-      "defaultValue": true,
+      "defaultValue": false,
       "metadata": {
-        "description": "When true, sets the Cosmos DB application setting on the Static Web App so the Azure Functions API can reach Cosmos DB. Set to false if the Static Web App does not exist yet."
+        "description": "When true, sets the Cosmos DB application setting on the Static Web App. This is only needed for legacy SWA-managed Functions; the dedicated Function App receives its own setting."
       }
     },
     "assignCosmosDataRole": {
       "type": "bool",
-      "defaultValue": true,
+      "defaultValue": false,
       "metadata": {
-        "description": "When true, grants the Static Web App system-assigned managed identity the Cosmos DB Built-in Data Contributor role so the API can use Microsoft Entra ID (AAD) authentication. Requires the system-assigned identity to be enabled on the Static Web App."
+        "description": "When true, grants the Static Web App system-assigned managed identity the Cosmos DB Built-in Data Contributor role. This is only needed for legacy SWA-managed Functions."
       }
     },
     "deployFunctionApp": {
@@ -79,6 +86,27 @@
         "description": "Location for the Function App, storage account and plan. Defaults to the resource group location."
       }
     },
+    "deployApplicationInsights": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "When true, provisions Application Insights and wires it to the dedicated Function App."
+      }
+    },
+    "logAnalyticsWorkspaceName": {
+      "type": "string",
+      "defaultValue": "[format('{0}-logs', parameters('name'))]",
+      "metadata": {
+        "description": "Name of the Log Analytics workspace used by Application Insights."
+      }
+    },
+    "applicationInsightsName": {
+      "type": "string",
+      "defaultValue": "[format('{0}-appi', parameters('name'))]",
+      "metadata": {
+        "description": "Name of the Application Insights component used by the Function App."
+      }
+    },
     "tags": {
       "type": "object",
       "defaultValue": {
@@ -90,16 +118,15 @@
     }
   },
   "variables": {
-    "cosmosAccountName": "[toLower(format('{0}-cosmos', parameters('name')))]",
     "cosmosDatabaseName": "schede",
     "cosmosContainerName": "schede",
-    "cosmosDataContributorRoleId": "[format('{0}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002', resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName')))]"
+    "cosmosDataContributorRoleId": "[format('{0}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002', resourceId('Microsoft.DocumentDB/databaseAccounts', toLower(parameters('cosmosAccountName'))))]"
   },
   "resources": [
     {
       "type": "Microsoft.DocumentDB/databaseAccounts",
       "apiVersion": "2024-11-15",
-      "name": "[variables('cosmosAccountName')]",
+      "name": "[toLower(parameters('cosmosAccountName'))]",
       "location": "[parameters('cosmosLocation')]",
       "tags": "[parameters('tags')]",
       "kind": "GlobalDocumentDB",
@@ -121,7 +148,7 @@
     {
       "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases",
       "apiVersion": "2024-11-15",
-      "name": "[format('{0}/{1}', variables('cosmosAccountName'), variables('cosmosDatabaseName'))]",
+      "name": "[format('{0}/{1}', toLower(parameters('cosmosAccountName')), variables('cosmosDatabaseName'))]",
       "properties": {
         "resource": {
           "id": "[variables('cosmosDatabaseName')]"
@@ -133,13 +160,13 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName'))]"
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', toLower(parameters('cosmosAccountName')))]"
       ]
     },
     {
       "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
       "apiVersion": "2024-11-15",
-      "name": "[format('{0}/{1}/{2}', variables('cosmosAccountName'), variables('cosmosDatabaseName'), variables('cosmosContainerName'))]",
+      "name": "[format('{0}/{1}/{2}', toLower(parameters('cosmosAccountName')), variables('cosmosDatabaseName'), variables('cosmosContainerName'))]",
       "properties": {
         "resource": {
           "id": "[variables('cosmosContainerName')]",
@@ -152,7 +179,7 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', variables('cosmosAccountName'), variables('cosmosDatabaseName'))]"
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', toLower(parameters('cosmosAccountName')), variables('cosmosDatabaseName'))]"
       ]
     },
     {
@@ -161,38 +188,69 @@
       "apiVersion": "2024-04-01",
       "name": "[format('{0}/{1}', parameters('staticWebAppName'), 'appsettings')]",
       "properties": {
-        "COSMOS_ENDPOINT": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName')), '2024-11-15').documentEndpoint]"
+        "COSMOS_ENDPOINT": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', toLower(parameters('cosmosAccountName'))), '2024-11-15').documentEndpoint]"
       },
       "dependsOn": [
-        "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName'))]"
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', toLower(parameters('cosmosAccountName')))]"
+      ]
+    },
+    {
+      "condition": "[and(parameters('deployFunctionApp'), parameters('deployApplicationInsights'))]",
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2023-09-01",
+      "name": "[parameters('logAnalyticsWorkspaceName')]",
+      "location": "[parameters('functionAppLocation')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": 30
+      }
+    },
+    {
+      "condition": "[and(parameters('deployFunctionApp'), parameters('deployApplicationInsights'))]",
+      "type": "Microsoft.Insights/components",
+      "apiVersion": "2020-02-02",
+      "name": "[parameters('applicationInsightsName')]",
+      "location": "[parameters('functionAppLocation')]",
+      "tags": "[parameters('tags')]",
+      "kind": "web",
+      "properties": {
+        "Application_Type": "web",
+        "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]",
+        "IngestionMode": "LogAnalytics"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
       ]
     },
     {
       "condition": "[parameters('assignCosmosDataRole')]",
       "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments",
       "apiVersion": "2024-11-15",
-      "name": "[format('{0}/{1}', variables('cosmosAccountName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName')), parameters('staticWebAppName'), '00000000-0000-0000-0000-000000000002'))]",
+      "name": "[format('{0}/{1}', toLower(parameters('cosmosAccountName')), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', toLower(parameters('cosmosAccountName'))), parameters('staticWebAppName'), '00000000-0000-0000-0000-000000000002'))]",
       "properties": {
         "roleDefinitionId": "[variables('cosmosDataContributorRoleId')]",
         "principalId": "[reference(resourceId('Microsoft.Web/staticSites', parameters('staticWebAppName')), '2024-04-01', 'full').identity.principalId]",
-        "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName'))]"
+        "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', toLower(parameters('cosmosAccountName')))]"
       },
       "dependsOn": [
-        "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName'))]"
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', toLower(parameters('cosmosAccountName')))]"
       ]
     },
     {
       "condition": "[parameters('deployFunctionApp')]",
       "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments",
       "apiVersion": "2024-11-15",
-      "name": "[format('{0}/{1}', variables('cosmosAccountName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName')), parameters('functionAppName'), '00000000-0000-0000-0000-000000000002'))]",
+      "name": "[format('{0}/{1}', toLower(parameters('cosmosAccountName')), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', toLower(parameters('cosmosAccountName'))), parameters('functionAppName'), '00000000-0000-0000-0000-000000000002'))]",
       "properties": {
         "roleDefinitionId": "[variables('cosmosDataContributorRoleId')]",
-        "principalId": "[reference(resourceId('Microsoft.Resources/deployments', 'functionAppDeployment'), '2025-04-01').outputs.principalId.value]",
-        "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName'))]"
+        "principalId": "[reference(resourceId('Microsoft.Resources/deployments', 'functionAppDeployment'), '2022-09-01').outputs.principalId.value]",
+        "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', toLower(parameters('cosmosAccountName')))]"
       },
       "dependsOn": [
-        "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName'))]",
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', toLower(parameters('cosmosAccountName')))]",
         "[resourceId('Microsoft.Resources/deployments', 'functionAppDeployment')]"
       ]
     },
@@ -202,7 +260,7 @@
       "apiVersion": "2024-04-01",
       "name": "[format('{0}/{1}', parameters('staticWebAppName'), 'schede-api')]",
       "properties": {
-        "backendResourceId": "[reference(resourceId('Microsoft.Resources/deployments', 'functionAppDeployment'), '2025-04-01').outputs.functionAppId.value]",
+        "backendResourceId": "[reference(resourceId('Microsoft.Resources/deployments', 'functionAppDeployment'), '2022-09-01').outputs.functionAppId.value]",
         "region": "[parameters('functionAppLocation')]"
       },
       "dependsOn": [
@@ -210,9 +268,23 @@
       ]
     },
     {
+      "condition": "[and(parameters('deployFunctionApp'), parameters('linkFunctionAppToStaticWebApp'))]",
+      "type": "Microsoft.Web/sites/config",
+      "apiVersion": "2024-04-01",
+      "name": "[format('{0}/{1}', parameters('functionAppName'), 'authsettingsV2')]",
+      "properties": {
+        "platform": {
+          "enabled": false
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/staticSites/linkedBackends', parameters('staticWebAppName'), 'schede-api')]"
+      ]
+    },
+    {
       "condition": "[parameters('deployFunctionApp')]",
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "functionAppDeployment",
       "properties": {
         "expressionEvaluationOptions": {
@@ -227,8 +299,9 @@
             "value": "[parameters('functionAppLocation')]"
           },
           "cosmosEndpoint": {
-            "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName')), '2024-11-15').documentEndpoint]"
+            "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', toLower(parameters('cosmosAccountName'))), '2024-11-15').documentEndpoint]"
           },
+          "applicationInsightsConnectionString": "[if(and(parameters('deployFunctionApp'), parameters('deployApplicationInsights')), createObject('value', reference(resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')), '2020-02-02').ConnectionString), createObject('value', ''))]",
           "tags": {
             "value": "[parameters('tags')]"
           }
@@ -239,8 +312,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.44.1.10279",
-              "templateHash": "17632659955022519510"
+              "version": "0.37.4.10188",
+              "templateHash": "10007997506955804457"
             }
           },
           "parameters": {
@@ -262,6 +335,13 @@
                 "description": "Cosmos DB account endpoint to expose as the COSMOS_ENDPOINT app setting."
               }
             },
+            "applicationInsightsConnectionString": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Application Insights connection string. Leave empty to disable Function App telemetry wiring."
+              }
+            },
             "tags": {
               "type": "object",
               "defaultValue": {},
@@ -271,7 +351,12 @@
             }
           },
           "variables": {
-            "storageAccountName": "[toLower(format('fn{0}', uniqueString(resourceGroup().id, parameters('functionAppName'))))]"
+            "storageAccountName": "[toLower(format('fn{0}', uniqueString(resourceGroup().id, parameters('functionAppName'), parameters('location'))))]",
+            "telemetryAppSettings": "[if(empty(parameters('applicationInsightsConnectionString')), createArray(), createArray(createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', parameters('applicationInsightsConnectionString'))))]",
+            "storageBlobDataOwnerRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b')]",
+            "storageQueueDataContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')]",
+            "storageTableDataContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')]",
+            "storageAccountContributorRoleId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '17d1049b-9a84-46fb-8f53-869881c3d3ab')]"
           },
           "resources": [
             {
@@ -286,7 +371,13 @@
               "kind": "StorageV2",
               "properties": {
                 "minimumTlsVersion": "TLS1_2",
+                "allowSharedKeyAccess": false,
                 "allowBlobPublicAccess": false,
+                "publicNetworkAccess": "Enabled",
+                "networkAcls": {
+                  "bypass": "AzureServices",
+                  "defaultAction": "Allow"
+                },
                 "supportsHttpsTrafficOnly": true
               }
             },
@@ -320,43 +411,74 @@
                 "reserved": true,
                 "httpsOnly": true,
                 "siteConfig": {
-                  "linuxFxVersion": "Node|20",
+                  "linuxFxVersion": "Node|22",
                   "ftpsState": "Disabled",
                   "minTlsVersion": "1.2",
-                  "appSettings": [
-                    {
-                      "name": "AzureWebJobsStorage",
-                      "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-05-01').keys[0].value)]"
-                    },
-                    {
-                      "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
-                      "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-05-01').keys[0].value)]"
-                    },
-                    {
-                      "name": "WEBSITE_CONTENTSHARE",
-                      "value": "[toLower(parameters('functionAppName'))]"
-                    },
-                    {
-                      "name": "FUNCTIONS_EXTENSION_VERSION",
-                      "value": "~4"
-                    },
-                    {
-                      "name": "FUNCTIONS_WORKER_RUNTIME",
-                      "value": "node"
-                    },
-                    {
-                      "name": "WEBSITE_NODE_DEFAULT_VERSION",
-                      "value": "~20"
-                    },
-                    {
-                      "name": "COSMOS_ENDPOINT",
-                      "value": "[parameters('cosmosEndpoint')]"
-                    }
-                  ]
+                  "appSettings": "[concat(createArray(createObject('name', 'AzureWebJobsStorage__blobServiceUri', 'value', reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-05-01').primaryEndpoints.blob), createObject('name', 'AzureWebJobsStorage__queueServiceUri', 'value', reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-05-01').primaryEndpoints.queue), createObject('name', 'AzureWebJobsStorage__tableServiceUri', 'value', reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-05-01').primaryEndpoints.table), createObject('name', 'AzureWebJobsStorage__credential', 'value', 'managedidentity'), createObject('name', 'FUNCTIONS_EXTENSION_VERSION', 'value', '~4'), createObject('name', 'FUNCTIONS_WORKER_RUNTIME', 'value', 'node'), createObject('name', 'WEBSITE_NODE_DEFAULT_VERSION', 'value', '~22'), createObject('name', 'COSMOS_ENDPOINT', 'value', parameters('cosmosEndpoint'))), variables('telemetryAppSettings'))]"
                 }
               },
               "dependsOn": [
                 "[resourceId('Microsoft.Web/serverfarms', format('{0}-plan', parameters('functionAppName')))]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.Storage/storageAccounts/{0}', variables('storageAccountName'))]",
+              "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), resourceId('Microsoft.Web/sites', parameters('functionAppName')), variables('storageBlobDataOwnerRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[variables('storageBlobDataOwnerRoleId')]",
+                "principalId": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2023-12-01', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', parameters('functionAppName'))]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.Storage/storageAccounts/{0}', variables('storageAccountName'))]",
+              "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), resourceId('Microsoft.Web/sites', parameters('functionAppName')), variables('storageQueueDataContributorRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[variables('storageQueueDataContributorRoleId')]",
+                "principalId": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2023-12-01', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', parameters('functionAppName'))]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.Storage/storageAccounts/{0}', variables('storageAccountName'))]",
+              "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), resourceId('Microsoft.Web/sites', parameters('functionAppName')), variables('storageTableDataContributorRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[variables('storageTableDataContributorRoleId')]",
+                "principalId": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2023-12-01', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', parameters('functionAppName'))]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.Storage/storageAccounts/{0}', variables('storageAccountName'))]",
+              "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), resourceId('Microsoft.Web/sites', parameters('functionAppName')), variables('storageAccountContributorRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[variables('storageAccountContributorRoleId')]",
+                "principalId": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2023-12-01', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', parameters('functionAppName'))]",
                 "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
               ]
             }
@@ -387,7 +509,8 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName'))]"
+        "[resourceId('Microsoft.Insights/components', parameters('applicationInsightsName'))]",
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', toLower(parameters('cosmosAccountName')))]"
       ]
     }
   ],
@@ -397,7 +520,7 @@
       "metadata": {
         "description": "The name of the provisioned Cosmos DB account."
       },
-      "value": "[variables('cosmosAccountName')]"
+      "value": "[toLower(parameters('cosmosAccountName'))]"
     },
     "cosmosDatabaseName": {
       "type": "string",
@@ -418,14 +541,21 @@
       "metadata": {
         "description": "The Cosmos DB account endpoint to set as the COSMOS_ENDPOINT application setting."
       },
-      "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName')), '2024-11-15').documentEndpoint]"
+      "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', toLower(parameters('cosmosAccountName'))), '2024-11-15').documentEndpoint]"
     },
     "functionAppName": {
       "type": "string",
       "metadata": {
         "description": "The name of the standalone Function App that hosts the API (empty when not deployed)."
       },
-      "value": "[if(parameters('deployFunctionApp'), reference(resourceId('Microsoft.Resources/deployments', 'functionAppDeployment'), '2025-04-01').outputs.functionAppName.value, '')]"
+      "value": "[if(parameters('deployFunctionApp'), reference(resourceId('Microsoft.Resources/deployments', 'functionAppDeployment'), '2022-09-01').outputs.functionAppName.value, '')]"
+    },
+    "applicationInsightsName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the Application Insights component (empty when not deployed)."
+      },
+      "value": "[if(and(parameters('deployFunctionApp'), parameters('deployApplicationInsights')), parameters('applicationInsightsName'), '')]"
     }
   }
 }

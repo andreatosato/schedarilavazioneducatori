@@ -827,6 +827,16 @@
     return (values || []).length ? values.map(value => String(value)).join(', ') : defaultText;
   }
 
+  function joinListWithText(values, text, textPrefix, defaultText) {
+    const parts = [...(values || [])];
+    if (text) parts.push(`${textPrefix}: ${text}`);
+    return parts.length ? parts.map(value => String(value)).join(', ') : defaultText;
+  }
+
+  function formatLuogo(record) {
+    return [record.luogo, record.luogoAltro, record.zona].filter(Boolean).join(' - ') || DEFAULT_TEXT.missing;
+  }
+
   function formatScoreOrDefault(value) {
     return value != null ? value + '/5' : DEFAULT_TEXT.missing;
   }
@@ -836,7 +846,8 @@
       ['Data', formatDate(record.data)],
       ['Ora inizio', record.oraInizio || DEFAULT_TEXT.missing],
       ['Ora fine', record.oraFine || DEFAULT_TEXT.missing],
-      ['Luogo', record.luogo || DEFAULT_TEXT.missing],
+      ['Luogo', formatLuogo(record)],
+      ['Frazione / altro luogo', record.luogoAltro || DEFAULT_TEXT.noDetail],
       ['Zona specifica', record.zona || DEFAULT_TEXT.missing],
       ['Educatori presenti', joinListOrDefault(record.educatori, DEFAULT_TEXT.missing)],
       ['Tipo uscita', record.tipo || DEFAULT_TEXT.missing],
@@ -846,10 +857,11 @@
       ['Genere prevalente', record.genere || DEFAULT_TEXT.missing],
       ["Clima generale dell'uscita", formatScoreOrDefault(record.clima)],
       ['Apertura dei ragazzi al contatto', formatScoreOrDefault(record.apertura)],
-      ['Temi emersi nelle conversazioni', joinListOrDefault(record.temi, DEFAULT_TEXT.none)],
+      ['Temi emersi nelle conversazioni', joinListWithText(record.temi, record.temiAltro, 'Altro', DEFAULT_TEXT.none)],
       ['Episodi critici osservati', joinListOrDefault(record.criticita, DEFAULT_TEXT.none)],
       ['Dettaglio criticità', record.criticitaNote || DEFAULT_TEXT.noDetail],
-      ['Contatti con la rete territoriale', joinListOrDefault(record.rete, DEFAULT_TEXT.none)],
+      ['Contatti con la rete territoriale', joinListWithText(record.rete, record.reteNote, 'Dettaglio', DEFAULT_TEXT.none)],
+      ['Qualità del posto', joinListWithText(record.qualitaPosto, record.qualitaPostoAltro, 'Altro', DEFAULT_TEXT.none)],
       ['Note e osservazioni', record.note || DEFAULT_TEXT.noNote],
       ['Da segnalare a Pamela', record.urgenza || DEFAULT_TEXT.missing]
     ];
@@ -878,8 +890,13 @@
       const matchSearch = !search ||
         (d.data || '').includes(search) ||
         (d.luogo || '').toLowerCase().includes(search) ||
+        (d.luogoAltro || '').toLowerCase().includes(search) ||
         (d.zona || '').toLowerCase().includes(search) ||
         (d.educatori || []).some(e => e.toLowerCase().includes(search)) ||
+        (d.temiAltro || '').toLowerCase().includes(search) ||
+        (d.reteNote || '').toLowerCase().includes(search) ||
+        (d.qualitaPosto || []).some(value => String(value).toLowerCase().includes(search)) ||
+        (d.qualitaPostoAltro || '').toLowerCase().includes(search) ||
         (d.note || '').toLowerCase().includes(search);
       const matchLuogo = !filterLuogo || d.luogo === filterLuogo;
       return matchSearch && matchLuogo;
@@ -911,6 +928,7 @@
         'Episodi critici osservati',
         'Dettaglio criticità',
         'Contatti con la rete territoriale',
+        'Qualità del posto',
         'Note e osservazioni'
       ];
 
@@ -926,6 +944,7 @@
           </div>
           <div class="record-meta">
             🕐 ${escapeHtml(d.oraInizio || '?')} – ${escapeHtml(d.oraFine || '?')}
+            ${d.luogoAltro ? ` · ${escapeHtml(d.luogoAltro)}` : ''}
             ${d.zona ? ` · ${escapeHtml(d.zona)}` : ''}
             · 👥 ${escapeHtml(eduStr)}
           </div>
@@ -949,10 +968,14 @@
 
   function buildText(d) {
     let text = `📋 SCHEDA USCITA - STRADE APERTE\n`;
+    const luogoCompleto = [d.luogo, d.luogoAltro, d.zona].filter(Boolean).join(' - ');
+    const temiCompleti = [...(d.temi || []), d.temiAltro ? `Altro: ${d.temiAltro}` : ''].filter(Boolean);
+    const reteCompleta = [...(d.rete || []), d.reteNote ? `Dettaglio: ${d.reteNote}` : ''].filter(Boolean);
+    const qualitaCompleta = [...(d.qualitaPosto || []), d.qualitaPostoAltro ? `Altro: ${d.qualitaPostoAltro}` : ''].filter(Boolean);
     text += `━━━━━━━━━━━━━━━━━━\n`;
     text += `📅 Data: ${d.data || 'N/D'}\n`;
     text += `🕐 Orario: ${d.oraInizio} - ${d.oraFine}\n`;
-    text += `📍 Luogo: ${d.luogo}${d.zona ? ' - ' + d.zona : ''}\n`;
+    text += `📍 Luogo: ${luogoCompleto || 'N/D'}\n`;
     text += `👥 Educatori: ${(d.educatori || []).join(', ') || 'N/D'}\n`;
     text += `📌 Tipo: ${d.tipo || 'N/D'}\n`;
     text += `━━━━━━━━━━━━━━━━━━\n`;
@@ -963,11 +986,12 @@
     text += `━━━━━━━━━━━━━━━━━━\n`;
     text += `😊 Clima: ${d.clima || 0}/5\n`;
     text += `🤝 Apertura: ${d.apertura || 0}/5\n`;
-    text += `💬 Temi: ${(d.temi || []).join(', ') || 'Nessuno'}\n`;
+    text += `💬 Temi: ${temiCompleti.join(', ') || 'Nessuno'}\n`;
     text += `━━━━━━━━━━━━━━━━━━\n`;
     text += `⚠️ Criticità: ${(d.criticita || []).join(', ') || 'Nessuna'}\n`;
     if (d.criticitaNote) text += `📝 Dettaglio: ${d.criticitaNote}\n`;
-    text += `🤝 Rete: ${(d.rete || []).join(', ') || 'Nessun contatto'}\n`;
+    text += `🤝 Rete: ${reteCompleta.join(', ') || 'Nessun contatto'}\n`;
+    text += `🌳 Qualità del posto: ${qualitaCompleta.join(', ') || 'Nessuna osservazione'}\n`;
     text += `━━━━━━━━━━━━━━━━━━\n`;
     if (d.note) text += `📝 Note: ${d.note}\n`;
     text += `🔔 Urgenza: ${d.urgenza || 'N/D'}\n`;
@@ -1082,10 +1106,10 @@
     }
 
     const headers = [
-      'Data', 'Ora inizio', 'Ora fine', 'Luogo', 'Zona', 'Educatori', 'Tipo',
+      'Data', 'Ora inizio', 'Ora fine', 'Luogo', 'Frazione / altro luogo', 'Zona', 'Educatori', 'Tipo',
       'Ragazzi', 'Nuovi', 'Fasce età', 'Genere',
-      'Clima', 'Apertura', 'Temi',
-      'Criticità', 'Note criticità', 'Rete', 'Note', 'Urgenza'
+      'Clima', 'Apertura', 'Temi', 'Altro temi',
+      'Criticità', 'Note criticità', 'Rete', 'Dettaglio rete', 'Qualità del posto', 'Altro qualità del posto', 'Note', 'Urgenza'
     ];
 
     const escape = v => {
@@ -1101,6 +1125,7 @@
       d.oraInizio || '',
       d.oraFine || '',
       d.luogo || '',
+      d.luogoAltro || '',
       d.zona || '',
       (d.educatori || []).join('; '),
       d.tipo || '',
@@ -1111,9 +1136,13 @@
       d.clima || 0,
       d.apertura || 0,
       (d.temi || []).join('; '),
+      d.temiAltro || '',
       (d.criticita || []).join('; '),
       d.criticitaNote || '',
       (d.rete || []).join('; '),
+      d.reteNote || '',
+      (d.qualitaPosto || []).join('; '),
+      d.qualitaPostoAltro || '',
       d.note || '',
       d.urgenza || ''
     ].map(escape).join(','));

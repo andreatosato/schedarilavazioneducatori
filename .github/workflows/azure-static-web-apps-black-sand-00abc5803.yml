@@ -27,7 +27,7 @@ jobs:
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_BLACK_SAND_00ABC5803 }}
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_STRADEAPERTE20260625 }}
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)
           action: "upload"
           ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
@@ -67,8 +67,8 @@ jobs:
       - name: Deploy API to Function App
         if: github.event_name == 'push'
         env:
-          FUNCTION_APP_NAME: black-sand-00abc5803-api
-          RESOURCE_GROUP: rg-stradeaperte
+          FUNCTION_APP_NAME: stradeaperte20260625-api
+          RESOURCE_GROUP: rg-stradeaperte-v2
         run: |
           set -euo pipefail
           if [ "${{ steps.azure_login.outcome }}" != "success" ]; then
@@ -79,10 +79,54 @@ jobs:
           npm ci --omit=dev
           zip -r ../api.zip . -x "test/*" "*.test.js" >/dev/null
           popd >/dev/null
-          az functionapp deployment source config-zip \
+          storage_uri=$(az functionapp config appsettings list \
             --name "$FUNCTION_APP_NAME" \
             --resource-group "$RESOURCE_GROUP" \
-            --src api.zip >/dev/null
+            --query "[?name=='AzureWebJobsStorage__blobServiceUri'].value | [0]" -o tsv)
+          storage_account=$(printf '%s\n' "$storage_uri" | sed -E 's#^https://([^.]+)\.blob\.core\.windows\.net/?$#\1#')
+          if [ -z "$storage_account" ] || [ "$storage_account" = "$storage_uri" ]; then
+            echo "::error::Unable to resolve the Function App storage account from AzureWebJobsStorage__blobServiceUri."
+            exit 1
+          fi
+          package_container="packages"
+          package_blob="api.zip"
+          az storage container create \
+            --account-name "$storage_account" \
+            --name "$package_container" \
+            --auth-mode login \
+            --query created -o tsv >/dev/null
+          az storage blob upload \
+            --account-name "$storage_account" \
+            --container-name "$package_container" \
+            --name "$package_blob" \
+            --file api.zip \
+            --overwrite true \
+            --auth-mode login \
+            --query name -o tsv >/dev/null
+          expiry=$(date -u -d '+6 days' '+%Y-%m-%dT%H:%MZ')
+          sas=$(az storage blob generate-sas \
+            --account-name "$storage_account" \
+            --container-name "$package_container" \
+            --name "$package_blob" \
+            --permissions r \
+            --expiry "$expiry" \
+            --auth-mode login \
+            --as-user \
+            --https-only -o tsv)
+          if [ -z "$sas" ]; then
+            echo "::error::Unable to generate a user delegation SAS for the Function App package. Ensure the GitHub Azure identity has Storage Blob Data Contributor and Storage Blob Delegator on the Function App storage account."
+            exit 1
+          fi
+          package_url="https://${storage_account}.blob.core.windows.net/${package_container}/${package_blob}?${sas}"
+          az functionapp config appsettings set \
+            --name "$FUNCTION_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --settings "WEBSITE_RUN_FROM_PACKAGE=$package_url" \
+            --query "[].name" -o json >/dev/null
+          unset sas package_url
+          az functionapp restart \
+            --name "$FUNCTION_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" >/dev/null
           echo "API deployed to Function App $FUNCTION_APP_NAME."
           az logout || true
 
@@ -97,5 +141,5 @@ jobs:
         id: closepullrequest
         uses: Azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_BLACK_SAND_00ABC5803 }}
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_STRADEAPERTE20260625 }}
           action: "close"

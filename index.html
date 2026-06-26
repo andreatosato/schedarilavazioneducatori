@@ -486,6 +486,11 @@
     </div>
 
     <div class="field">
+      <label for="luogo-altro">Frazione / altro luogo <span class="badge badge-optional">opzionale</span></label>
+      <input type="text" id="luogo-altro" placeholder="Es: frazione, quartiere o altro luogo...">
+    </div>
+
+    <div class="field">
       <label>Zona specifica</label>
       <input type="text" id="zona" placeholder="Es: piazza centrale, parco, fuori scuola...">
     </div>
@@ -533,6 +538,7 @@
         </div>
       </div>
     </div>
+
   </div>
 
   <!-- SEZIONE 2: RAGAZZI INCONTRATI -->
@@ -675,6 +681,11 @@
         </div>
       </div>
     </div>
+
+    <div class="field">
+      <label for="temi-altro">Altro tema emerso <span class="badge badge-optional">opzionale</span></label>
+      <textarea id="temi-altro" placeholder="Aggiungi temi o dettagli emersi nelle conversazioni..."></textarea>
+    </div>
   </div>
 
   <!-- SEZIONE 4: CRITICITÀ -->
@@ -758,9 +769,54 @@
         </div>
       </div>
     </div>
+
+    <div class="field">
+      <label for="rete-note">Dettaglio rete territoriale <span class="badge badge-optional">opzionale</span></label>
+      <textarea id="rete-note" placeholder="Annota contatti, persone, enti o passaggi da seguire..."></textarea>
+    </div>
   </div>
 
-  <!-- SEZIONE 6: NOTE -->
+  <!-- SEZIONE 6: QUALITÀ DEL POSTO -->
+  <div class="section">
+    <div class="section-title">Qualità del posto</div>
+
+    <div class="field">
+      <label>Elementi osservati <span class="badge badge-optional">opzionale</span></label>
+      <div class="checkbox-group">
+        <div class="checkbox-item">
+          <input type="checkbox" id="qualita-posto-alberi" value="Alberi / ombra">
+          <label for="qualita-posto-alberi">Alberi / ombra</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="qualita-posto-panchine" value="Panchine">
+          <label for="qualita-posto-panchine">Panchine</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="qualita-posto-strutture" value="Vecchie strutture">
+          <label for="qualita-posto-strutture">Vecchie strutture</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="qualita-posto-illuminazione" value="Illuminazione">
+          <label for="qualita-posto-illuminazione">Illuminazione</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="qualita-posto-pulizia" value="Pulizia / cura">
+          <label for="qualita-posto-pulizia">Pulizia / cura</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="qualita-posto-spazi" value="Spazi gioco / aggregazione">
+          <label for="qualita-posto-spazi">Spazi gioco / aggregazione</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="qualita-posto-altro">Altro sulla qualità del posto <span class="badge badge-optional">opzionale</span></label>
+      <textarea id="qualita-posto-altro" placeholder="Descrivi altri elementi del posto, bisogni o opportunità..."></textarea>
+    </div>
+  </div>
+
+  <!-- SEZIONE 7: NOTE -->
   <div class="section">
     <div class="section-title">Note e osservazioni</div>
 
@@ -844,6 +900,7 @@
     const oraFine = document.getElementById('ora-fine').value;
     
     const luogo = document.querySelector('input[name="luogo"]:checked');
+    const luogoAltro = document.getElementById('luogo-altro').value.trim();
     const zona = document.getElementById('zona').value;
     
     const educatori = [];
@@ -858,18 +915,25 @@
     
     const temi = [];
     document.querySelectorAll('[id^="tema-"]:checked').forEach(c => temi.push(c.value));
+    const temiAltro = document.getElementById('temi-altro').value.trim();
     
     const criticita = [];
     document.querySelectorAll('[id^="crit-"]:checked').forEach(c => criticita.push(c.value));
     
     const rete = [];
     document.querySelectorAll('[id^="rete-"]:checked').forEach(c => rete.push(c.value));
+    const reteNote = document.getElementById('rete-note').value.trim();
+
+    const qualitaPosto = [];
+    document.querySelectorAll('[id^="qualita-posto-"]:checked').forEach(c => qualitaPosto.push(c.value));
+    const qualitaPostoAltro = document.getElementById('qualita-posto-altro').value.trim();
     
     const urgenza = document.querySelector('input[name="urgenza"]:checked');
 
     return {
       data, oraInizio, oraFine,
       luogo: luogo ? luogo.value : '',
+      luogoAltro,
       zona,
       educatori,
       tipo: tipo ? tipo.value : '',
@@ -880,9 +944,13 @@
       clima: scales.clima,
       apertura: scales.apertura,
       temi,
+      temiAltro,
       criticita,
       criticitaNote: document.getElementById('criticita-note').value,
       rete,
+      reteNote,
+      qualitaPosto,
+      qualitaPostoAltro,
       note: document.getElementById('note').value,
       urgenza: urgenza ? urgenza.value : ''
     };
@@ -895,8 +963,12 @@
     document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
     document.getElementById('urg-no').checked = true;
     document.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false);
+    document.getElementById('luogo-altro').value = '';
     document.getElementById('zona').value = '';
+    document.getElementById('temi-altro').value = '';
     document.getElementById('criticita-note').value = '';
+    document.getElementById('rete-note').value = '';
+    document.getElementById('qualita-posto-altro').value = '';
     document.getElementById('note').value = '';
     counts.ragazzi = 0;
     counts.nuovi = 0;
@@ -936,10 +1008,14 @@
   function exportText() {
     const d = getFormData();
     let text = `📋 SCHEDA USCITA - STRADE APERTE\n`;
+    const luogoCompleto = [d.luogo, d.luogoAltro, d.zona].filter(Boolean).join(' - ');
+    const temiCompleti = [...d.temi, d.temiAltro ? `Altro: ${d.temiAltro}` : ''].filter(Boolean);
+    const reteCompleta = [...d.rete, d.reteNote ? `Dettaglio: ${d.reteNote}` : ''].filter(Boolean);
+    const qualitaCompleta = [...d.qualitaPosto, d.qualitaPostoAltro ? `Altro: ${d.qualitaPostoAltro}` : ''].filter(Boolean);
     text += `━━━━━━━━━━━━━━━━━━\n`;
     text += `📅 Data: ${d.data || 'N/D'}\n`;
     text += `🕐 Orario: ${d.oraInizio} - ${d.oraFine}\n`;
-    text += `📍 Luogo: ${d.luogo}${d.zona ? ' - ' + d.zona : ''}\n`;
+    text += `📍 Luogo: ${luogoCompleto || 'N/D'}\n`;
     text += `👥 Educatori: ${d.educatori.join(', ') || 'N/D'}\n`;
     text += `📌 Tipo: ${d.tipo || 'N/D'}\n`;
     text += `━━━━━━━━━━━━━━━━━━\n`;
@@ -950,11 +1026,12 @@
     text += `━━━━━━━━━━━━━━━━━━\n`;
     text += `😊 Clima: ${d.clima}/5\n`;
     text += `🤝 Apertura: ${d.apertura}/5\n`;
-    text += `💬 Temi: ${d.temi.join(', ') || 'Nessuno'}\n`;
+    text += `💬 Temi: ${temiCompleti.join(', ') || 'Nessuno'}\n`;
     text += `━━━━━━━━━━━━━━━━━━\n`;
     text += `⚠️ Criticità: ${d.criticita.join(', ') || 'Nessuna'}\n`;
     if (d.criticitaNote) text += `📝 Dettaglio: ${d.criticitaNote}\n`;
-    text += `🤝 Rete: ${d.rete.join(', ') || 'Nessun contatto'}\n`;
+    text += `🤝 Rete: ${reteCompleta.join(', ') || 'Nessun contatto'}\n`;
+    text += `🌳 Qualità del posto: ${qualitaCompleta.join(', ') || 'Nessuna osservazione'}\n`;
     text += `━━━━━━━━━━━━━━━━━━\n`;
     if (d.note) text += `📝 Note: ${d.note}\n`;
     text += `🔔 Urgenza: ${d.urgenza}\n`;

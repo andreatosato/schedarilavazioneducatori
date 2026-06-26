@@ -1,4 +1,6 @@
 using './main.bicep'
 
-param name = 'black-sand-00abc5803'
-param enableCosmosFreeTier = true
+param name = 'stradeaperte20260625'
+param cosmosAccountName = 'stradeaperte20260625'
+param enableCosmosFreeTier = false
+param functionAppLocation = 'westeurope'

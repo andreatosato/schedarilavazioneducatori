@@ -12,18 +12,26 @@ test('normalizeScheda keeps only expected fields and coerces values', () => {
   const scheda = normalizeScheda({
     id: 'scheda_1',
     data: '2026-06-24',
+    luogoAltro: 'Stallavena',
     educatori: ['Ada', 42],
     ragazzi: '3',
     clima: 'not-a-number',
+    temiAltro: 'Trasporti serali',
+    qualitaPosto: ['Panchine', 7],
+    qualitaPostoAltro: 'Fontana non funzionante',
     extra: 'ignored'
   });
 
   assert.deepEqual(scheda, {
     id: 'scheda_1',
     data: '2026-06-24',
+    luogoAltro: 'Stallavena',
     educatori: ['Ada', '42'],
     ragazzi: 3,
-    clima: 0
+    clima: 0,
+    temiAltro: 'Trasporti serali',
+    qualitaPosto: ['Panchine', '7'],
+    qualitaPostoAltro: 'Fontana non funzionante'
   });
 });
 

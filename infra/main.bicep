@@ -13,7 +13,10 @@
 targetScope = 'resourceGroup'
 
 @description('Base name used to derive the resource names.')
-param name string = 'black-sand-00abc5803'
+param name string = 'stradeaperte'
+
+@description('Name of the Cosmos DB account. Defaults to the base name so the account can match the Static Web App resource name.')
+param cosmosAccountName string = name
 
 @description('Location for the Cosmos DB account. Defaults to the resource group location.')
 param cosmosLocation string = resourceGroup().location
@@ -24,11 +27,11 @@ param enableCosmosFreeTier bool = true
 @description('Name of the existing Static Web App whose application settings receive the Cosmos DB connection string. Defaults to the base name.')
 param staticWebAppName string = name
 
-@description('When true, sets the Cosmos DB application setting on the Static Web App so the Azure Functions API can reach Cosmos DB. Set to false if the Static Web App does not exist yet.')
-param configureStaticWebAppSettings bool = true
+@description('When true, sets the Cosmos DB application setting on the Static Web App. This is only needed for legacy SWA-managed Functions; the dedicated Function App receives its own setting.')
+param configureStaticWebAppSettings bool = false
 
-@description('When true, grants the Static Web App system-assigned managed identity the Cosmos DB Built-in Data Contributor role so the API can use Microsoft Entra ID (AAD) authentication. Requires the system-assigned identity to be enabled on the Static Web App.')
-param assignCosmosDataRole bool = true
+@description('When true, grants the Static Web App system-assigned managed identity the Cosmos DB Built-in Data Contributor role. This is only needed for legacy SWA-managed Functions.')
+param assignCosmosDataRole bool = false
 
 @description('When true, provisions a standalone Linux Azure Function App (with its own storage account and consumption plan) to host the schede API. Unlike the Static Web Apps managed Functions, a dedicated Function App fully supports managed identity, so Cosmos DB Entra ID authentication works at runtime.')
 param deployFunctionApp bool = true
@@ -42,17 +45,25 @@ param linkFunctionAppToStaticWebApp bool = true
 @description('Location for the Function App, storage account and plan. Defaults to the resource group location.')
 param functionAppLocation string = resourceGroup().location
 
+@description('When true, provisions Application Insights and wires it to the dedicated Function App.')
+param deployApplicationInsights bool = true
+
+@description('Name of the Log Analytics workspace used by Application Insights.')
+param logAnalyticsWorkspaceName string = '${name}-logs'
+
+@description('Name of the Application Insights component used by the Function App.')
+param applicationInsightsName string = '${name}-appi'
+
 @description('Tags applied to every resource.')
 param tags object = {
   project: 'strade-aperte'
 }
 
-var cosmosAccountName = toLower('${name}-cosmos')
 var cosmosDatabaseName = 'schede'
 var cosmosContainerName = 'schede'
 
 resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
-  name: cosmosAccountName
+  name: toLower(cosmosAccountName)
   location: cosmosLocation
   tags: tags
   kind: 'GlobalDocumentDB'
@@ -131,12 +142,36 @@ resource staticWebAppSettings 'Microsoft.Web/staticSites/config@2024-04-01' = if
 // the account data, which is what the Functions API needs.
 var cosmosDataContributorRoleId = '${cosmosAccount.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002'
 
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = if (deployFunctionApp && deployApplicationInsights) {
+  name: logAnalyticsWorkspaceName
+  location: functionAppLocation
+  tags: tags
+  properties: {
+    sku: {
+      name: 'PerGB2018'
+    }
+    retentionInDays: 30
+  }
+}
+
+resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = if (deployFunctionApp && deployApplicationInsights) {
+  name: applicationInsightsName
+  location: functionAppLocation
+  tags: tags
+  kind: 'web'
+  properties: {
+    Application_Type: 'web'
+    WorkspaceResourceId: logAnalyticsWorkspace.id
+    IngestionMode: 'LogAnalytics'
+  }
+}
+
 resource cosmosDataRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = if (assignCosmosDataRole) {
   parent: cosmosAccount
   name: guid(cosmosAccount.id, staticWebAppName, '00000000-0000-0000-0000-000000000002')
   properties: {
     roleDefinitionId: cosmosDataContributorRoleId
-    principalId: staticWebApp.identity.principalId
+    principalId: staticWebApp!.identity.principalId
     scope: cosmosAccount.id
   }
 }
@@ -154,8 +189,13 @@ module functionApp 'functionApp.bicep' = if (deployFunctionApp) {
     functionAppName: functionAppName
     location: functionAppLocation
     cosmosEndpoint: cosmosAccount.properties.documentEndpoint
+    applicationInsightsConnectionString: (deployFunctionApp && deployApplicationInsights) ? applicationInsights!.properties.ConnectionString : ''
     tags: tags
   }
+}
+
+resource functionAppSite 'Microsoft.Web/sites@2024-04-01' existing = if (deployFunctionApp && linkFunctionAppToStaticWebApp) {
+  name: functionAppName
 }
 
 // Grant the Function App's managed identity read/write access to Cosmos DB data.
@@ -181,6 +221,21 @@ resource linkedBackend 'Microsoft.Web/staticSites/linkedBackends@2024-04-01' = i
   }
 }
 
+// Keep the API triggers anonymous. The linked backend still proxies /api/*,
+// while App Service Authentication on the Function App causes proxy 503s here.
+resource functionAppAuthSettings 'Microsoft.Web/sites/config@2024-04-01' = if (deployFunctionApp && linkFunctionAppToStaticWebApp) {
+  parent: functionAppSite
+  name: 'authsettingsV2'
+  properties: {
+    platform: {
+      enabled: false
+    }
+  }
+  dependsOn: [
+    linkedBackend
+  ]
+}
+
 @description('The name of the provisioned Cosmos DB account.')
 output cosmosAccountName string = cosmosAccount.name
 
@@ -195,3 +250,6 @@ output cosmosEndpoint string = cosmosAccount.properties.documentEndpoint
 
 @description('The name of the standalone Function App that hosts the API (empty when not deployed).')
 output functionAppName string = deployFunctionApp ? functionApp!.outputs.functionAppName : ''
+
+@description('The name of the Application Insights component (empty when not deployed).')
+output applicationInsightsName string = (deployFunctionApp && deployApplicationInsights) ? applicationInsights.name : ''

@@ -2,10 +2,10 @@
 
 App web statica per la rilevazione delle uscite educative di strada del progetto **Strade Aperte**.
 
-> **App online:** https://black-sand-00abc5803.7.azurestaticapps.net
+> **App online:** https://victorious-meadow-0a8776203.7.azurestaticapps.net
 >
-> L'URL definitivo viene generato da Azure Static Web Apps e include un suffisso
-> casuale: aggiornalo qui dopo aver eseguito il deploy se differisce.
+> Risorse Azure correnti: Static Web App `stradeaperte20260625`, Function App
+> `stradeaperte20260625-api`, resource group `rg-stradeaperte-v2`.
 
 ## Funzionalità
 
@@ -36,12 +36,17 @@ L'infrastruttura è mantenuta il più economica possibile:
   collegato (*linked backend*) serve il piano **Standard**; il piano *Free* non supporta i
   backend collegati.
 - La pipeline di infrastruttura crea **Azure Cosmos DB for NoSQL** in *Free Tier* (1000 RU/s + 25 GB gratuiti a vita), con database e container `schede`.
-- L'API è ospitata su un **Azure Function App dedicato** (Linux, Node 20, piano *Consumption*),
+- L'API è ospitata su un **Azure Function App dedicato** (Linux, Node 22, piano *Consumption*),
   collegato alla Static Web App come *bring your own* backend: le richieste a `/api/*` vengono
   instradate al Function App. A differenza delle Functions *integrate* in Static Web Apps, un
   Function App dedicato **supporta la managed identity**, quindi l'autenticazione a Cosmos DB
   con **Microsoft Entra ID (AAD)** funziona a runtime. L'app setting `COSMOS_ENDPOINT` è
   impostato sul Function App dal Bicep; in alternativa è supportata la connection string `COSMOS`.
+  Il Bicep disabilita App Service Authentication sul Function App dopo il collegamento, perché
+  questa API usa trigger HTTP anonimi e EasyAuth sul backend collegato può restituire 503 al proxy
+  della Static Web App. Di conseguenza l'endpoint diretto `*.azurewebsites.net/api/*` resta pubblico.
+- **Application Insights** raccoglie richieste, errori, trace e diagnostica host del Function App
+  tramite la connection string `APPLICATIONINSIGHTS_CONNECTION_STRING` impostata dal Bicep.
 
 > ⚠️ Le **Functions integrate** in Static Web Apps **non** supportano la managed identity per le
 > chiamate in uscita: il runtime espone solo la vecchia variabile `MSI_ENDPOINT`, così
@@ -98,8 +103,8 @@ crea il resource group e **solo** l'account Cosmos DB Free Tier con database/con
    | `AZURE_TENANT_ID` | Tenant ID di Entra ID |
    | `AZURE_SUBSCRIPTION_ID` | ID della sottoscrizione Azure |
 
-   Opzionalmente puoi impostare le **variables** `AZURE_RESOURCE_GROUP` e `AZURE_LOCATION`
-   (default: `rg-stradeaperte` e la regione Italy North (`italynorth`)).
+  Opzionalmente puoi impostare le **variables** `AZURE_RESOURCE_GROUP` e `AZURE_LOCATION`
+  (default: `rg-stradeaperte-v2` e la regione Italy North (`italynorth`)).
 3. Avvia il workflow **Provision Cosmos DB Free Tier** da *Actions → Run workflow*.
    La modalità predefinita `validate` compila il Bicep e stampa i comandi manuali
    senza contattare Azure, così non viene bloccata dalle policy di Conditional Access.
@@ -117,9 +122,9 @@ crea il resource group e **solo** l'account Cosmos DB Free Tier con database/con
 #### Opzione B – Manuale da Azure CLI
 
 ```bash
-az group create --name rg-stradeaperte --location italynorth
+az group create --name rg-stradeaperte-v2 --location italynorth
 az deployment group create \
-  --resource-group rg-stradeaperte \
+  --resource-group rg-stradeaperte-v2 \
   --template-file infra/main.bicep \
   --parameters infra/main.bicepparam
 ```
@@ -128,12 +133,12 @@ Al termine, gli output contengono i nomi di account, database e container Cosmos
 
 ### 2. Configurazione del deploy automatico
 
-1. Recupera il deployment token della Static Web App (`black-sand-00abc5803` è il nome
+1. Recupera il deployment token della Static Web App (`stradeaperte20260625` è il nome
    di default definito in `infra/main.bicepparam`; usa lo stesso valore se lo hai modificato):
    ```bash
    az staticwebapp secrets list \
-     --name black-sand-00abc5803 \
-     --resource-group rg-stradeaperte \
+  --name stradeaperte20260625 \
+  --resource-group rg-stradeaperte-v2 \
      --query "properties.apiKey" -o tsv
    ```
 2. In GitHub, aggiungi il deployment token come secret del repository
@@ -141,7 +146,7 @@ Al termine, gli output contengono i nomi di account, database e container Cosmos
 
    | Secret | Valore |
    |--------|--------|
-   | `AZURE_STATIC_WEB_APPS_API_TOKEN_BLACK_SAND_00ABC5803` | Deployment token della Static Web App |
+  | `AZURE_STATIC_WEB_APPS_API_TOKEN_STRADEAPERTE20260625` | Deployment token della Static Web App |
    | `AZURE_CLIENT_ID` | Client ID del service principal usato per impostare la connection string |
    | `AZURE_TENANT_ID` | Tenant ID del service principal |
    | `AZURE_SUBSCRIPTION_ID` | Subscription ID che contiene la Static Web App e Cosmos DB |
@@ -159,13 +164,16 @@ Al termine, gli output contengono i nomi di account, database e container Cosmos
    > tenant (`AADSTS53003`): l'autenticazione OIDC evita quel blocco. Se la policy
    > si applica anche alle workload identity, escludi la service principal dalla policy.
 3. Ad ogni push sul branch `main`, il workflow `azure-static-web-apps-black-sand-00abc5803.yml`
-   imposta **automaticamente** l'application setting `COSMOS_ENDPOINT` sulla Static Web App.
-   Lo step *Azure login (OIDC)* esegue il login federato con la service principal,
-   poi lo step *Configure Cosmos DB endpoint* legge l'endpoint
-   dall'account Cosmos (`black-sand-00abc5803-cosmos` nel resource group
-   `rg-stradeaperte`) e lo pubblica con `az staticwebapp appsettings set`. La Functions API
-   si autentica poi con **Microsoft Entra ID** usando la *managed identity* della Static Web App,
-   senza salvare alcuna chiave o connection string nel repository.
+  pubblica il sito statico e poi aggiorna il Function App dedicato. Lo step *Azure login
+  (OIDC)* esegue il login federato con la service principal; lo step *Deploy API to Function App*
+  crea `api.zip`, lo carica nello storage del Function App con autenticazione Entra ID, genera
+  un SAS di sola lettura valido 6 giorni e imposta `WEBSITE_RUN_FROM_PACKAGE`. La Functions API
+  si autentica a Cosmos DB con **Microsoft Entra ID** usando la *managed identity* del Function App,
+  senza salvare chiavi o connection string nel repository.
+
+  > ℹ️ Per pubblicare il package API con shared key disabilitate sullo storage, l'identità Azure
+  > usata da GitHub Actions deve avere almeno **Storage Blob Data Contributor** e
+  > **Storage Blob Delegator** sullo storage account del Function App.
 
    > ℹ️ Perché l'autenticazione AAD funzioni servono due prerequisiti, gestiti dal Bicep
    > (vedi `infra/main.bicep`, `mode=deploy`) ma verificabili anche dal portale:
@@ -203,11 +211,11 @@ non va a buon fine, la causa quasi sempre è una configurazione mancante o errat
   ```bash
   COSMOS_ENDPOINT=$(az cosmosdb show \
     --name <nome-account-cosmos> \
-    --resource-group rg-stradeaperte \
+    --resource-group rg-stradeaperte-v2 \
     --query "documentEndpoint" -o tsv)
   az staticwebapp appsettings set \
-    --name black-sand-00abc5803 \
-    --resource-group rg-stradeaperte \
+    --name stradeaperte20260625 \
+    --resource-group rg-stradeaperte-v2 \
     --setting-names "COSMOS_ENDPOINT=$COSMOS_ENDPOINT"
   ```
 - **Errore `AggregateAuthenticationError: ChainedTokenCredential authentication failed`
@@ -217,7 +225,7 @@ non va a buon fine, la causa quasi sempre è una configurazione mancante o errat
   **Functions integrate** in Static Web Apps, che non supportano la managed identity. La
   soluzione adottata è ospitare l'API su un **Function App dedicato** collegato alla Static
   Web App (vedi *Architettura su Azure*): lì la managed identity funziona e l'autenticazione
-  AAD a Cosmos DB ha successo. Verifica che il Function App `black-sand-00abc5803-api` abbia la
+  AAD a Cosmos DB ha successo. Verifica che il Function App `stradeaperte20260625-api` abbia la
   *system-assigned managed identity* abilitata, il ruolo dati su Cosmos DB e `COSMOS_ENDPOINT`
   impostato. Nel frattempo, se è configurata la connection string `COSMOS`, l'API ripiega
   automaticamente sull'autenticazione a chiave; in caso contrario restituisce un 503 con
@@ -230,7 +238,7 @@ non va a buon fine, la causa quasi sempre è una configurazione mancante o errat
   ```bash
   az cosmosdb sql role assignment create \
     --account-name <nome-account-cosmos> \
-    --resource-group rg-stradeaperte \
+    --resource-group rg-stradeaperte-v2 \
     --role-definition-id 00000000-0000-0000-0000-000000000002 \
     --principal-id <principalId-della-managed-identity-della-SWA> \
     --scope "/"

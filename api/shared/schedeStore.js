@@ -9,6 +9,7 @@ const ALLOWED_FIELDS = [
   'oraInizio',
   'oraFine',
   'luogo',
+  'luogoAltro',
   'zona',
   'educatori',
   'tipo',
@@ -19,13 +20,17 @@ const ALLOWED_FIELDS = [
   'clima',
   'apertura',
   'temi',
+  'temiAltro',
   'criticita',
   'criticitaNote',
   'rete',
+  'reteNote',
+  'qualitaPosto',
+  'qualitaPostoAltro',
   'note',
   'urgenza'
 ];
-const ARRAY_FIELDS = new Set(['educatori', 'fasce', 'temi', 'criticita', 'rete']);
+const ARRAY_FIELDS = new Set(['educatori', 'fasce', 'temi', 'criticita', 'rete', 'qualitaPosto']);
 const NUMBER_FIELDS = new Set(['ragazzi', 'nuovi', 'clima', 'apertura']);
 const LIST_PAGE_SIZE = 100;
 const LIST_SCHEDE_QUERY = `SELECT ${ALLOWED_FIELDS.map(field => `c.${field}`).join(', ')} FROM c`;
